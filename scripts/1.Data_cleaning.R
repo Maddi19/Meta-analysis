@@ -1,4 +1,4 @@
-#########DATA CLEANING#####
+#########1.DATA CLEANING#####
 ###########################
 
 rm(list = ls(all.names = TRUE)) #Limpiar objetos ocultos
@@ -398,12 +398,12 @@ unique(datos$`Plant species`)
 #276sp
 unique(datos$`Plant species family`)
 #78familias
-write.csv(datos,"C:\\Users\\OK\\Desktop\\Meta-analisis\\datos.limpios1.csv" )
+write.csv(datos,"data\\clean_data.csv" )
 
 ##info de familias, genero y especie
 info_sp <- datos %>%
   group_by(`Plant species family`,Genus,`Plant species`,)%>%
   summarise(n=n())
 
-write.csv(info_sp, "RData/tabla.sp.csv")
+write.csv(info_sp, "data\\plant_info_table.csv")
  
