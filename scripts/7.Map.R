@@ -50,7 +50,7 @@ obs.pais <- effect.size.total%>%
 
 #try using google maps
 library(ggmap)
-register_google(key="AIzaSyBMLdr5kn90Q5Au3Q3SLiGXfb2D_W7ZF2s")
+register_google(key="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
 
 study_locations<-obs.pais$Country
 study_locations<-obs.pais$Country
