@@ -1,0 +1,1 @@
+This project includes data and code used to generate the results found in Artamendi et al (2024) "Loss of pollinator diversity consistently reduces reproductive success for both wild plants and crops globally"
