@@ -1,56 +1,57 @@
-rm(list = ls(all.names = TRUE)) #Limpiar objetos ocultos
-pacman::p_unload(pacman::p_loaded(), character.only = TRUE) #Limpiar paquetes ocultos
-pacman::p_load(tidyverse,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
+########## EFFECT SIZE CALCULATION ######
+
+rm(list = ls(all.names = TRUE)) 
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
+pacman::p_load(tidyverse,rJava, dplyr,metafor,esc,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
                ggmap,mapproj,glmulti,MuMIn)
 
-setwd("C:\\Users\\OK\\Desktop\\Meta-analisis") 
-datos <- read.csv("datos.limpios1.csv")
+data <- read.csv("data/2.clean_data.csv")
 
-unique(datos$Higher_diversity_guilds)
-table(datos$Higher_diversity_guilds)
-unique(datos$Lower_diversity_guild)
-unique(datos$Year)
-datos$Country <- recode(datos$Country, "Camada"="Canada",
+unique(data$Higher_diversity_guilds)
+table(data$Higher_diversity_guilds)
+unique(data$Lower_diversity_guild)
+unique(data$Year)
+data$Country <- recode(data$Country, "Camada"="Canada",
                         "Neederlands"="Netherlands")
 
 ###### EFFECT SIZES#####
 
 ##convert to numeric all values
-datos$Value<-as.numeric(datos$Value)
-datos$N<-as.numeric(datos$N)
-datos$valueC<-as.numeric(datos$valueC)
-datos$valueT<-as.numeric(datos$valueT)
-datos$seC<-as.numeric(datos$seC)
-datos$seT<-as.numeric(datos$seT)
+data$Value<-as.numeric(data$Value)
+data$N<-as.numeric(data$N)
+data$valueC<-as.numeric(data$valueC)
+data$valueT<-as.numeric(data$valueT)
+data$seC<-as.numeric(data$seC)
+data$seT<-as.numeric(data$seT)
 
-##1. solo escogemos datos que comparan trat con contro.
-trat <-datos%>%
+##1. data that compares trat with control:
+trat <-data%>%
   filter(!is.na(valueC)& !is.na(valueT))
 
-unique(trat$Title) #142 estudios
+unique(trat$Title) #142 studies
 
 ## effect size log response ratio
 log(trat$valueC)-log(trat$valueT)
-##positivo es que es mayor en C que en T.
+##positive is that it is higher in C than in T.
 
 trat$logRR_manual <- log(trat$valueC)-log(trat$valueT)
 trat %>%
   filter(logRR_manual<Inf)%>%
   summarise(mean_imp=mean(logRR_manual))
 
-(exp(0.526)-1)*100 ## en que porcentaje aumenta, aumenta un 69.2%
-##inf es que uno de los dos numeros es un 0
+(exp(0.526)-1)*100 ## by what percentage it increases, it increases by 69.2% 
+#only taking into account the data comparing T to C
 
-##effect size in metafor
-#sacamos las sd.
+##### EFFECT SIZE IN METAFOR AND ESC
+#SD calculation
 trat$SD_C <- trat$seC*sqrt(trat$N.control)
 trat$SD_T <- trat$seT*sqrt(trat$N.treat)
 
-##sacamos cv
+##CV calculation
 trat$cv_c <- trat$SD_C/trat$valueC
 trat$cv_t <- trat$SD_T/trat$valueT
 
-###mediana de los cv
+### median CV calculation for Control and Treatment
 trat%>%
   filter(!is.na(cv_c)&!is.na(cv_t))%>%
   summarise(median(cv_c))
@@ -61,33 +62,38 @@ trat%>%
   summarise(median(cv_t))
 ##0.467
 
-###calculamos sd para los que no tienen datos
+###Now we can calculate sd for those without data
 newtrat<- trat%>% mutate( 
   SD_C = ifelse(is.na(SD_C), 0.383*valueC, SD_C),
   SD_T =  ifelse(is.na(SD_T), 0.467*valueT,SD_T),
   N=ifelse(is.na(N), N.control+N.treat, N),
   N.treat=ifelse(is.na(N.treat), N/2, N.treat),
   N.control=ifelse(is.na(N.control), N/2, N.control))
-
-
 trat_es<-newtrat%>%
   filter(logRR_manual<Inf)
 
+### Control and Trat
+trat_es<-escalc(m1i=valueC,m2i=valueT,sd1i=SD_C,sd2i=SD_T,
+                n1i=N.control,n2i=N.treat,data = trat_es,measure = "SMD",
+                slab=Title)
 
-######PARA DEMAS MEDIDAS######
-##2.los que son t
-fruit.t <-datos%>%
+
+######FOR OTHER MEASURES that are not treatment versus control######
+## t-statistic
+data.t <-data%>%
   filter(Measure.used=="t")
 
 library(esc)
-effect_sizes.t <- esc_t(t = fruit.t$Value, 
-                        totaln=fruit.t$N, es.type = "g")
+library(metafor)
+effect_sizes.t <- esc_t(t = data.t$Value, 
+                        totaln=data.t$N, es.type = "g")
+
 effect_sizes.t2<-as.data.frame(effect_sizes.t)
 
 effect_sizes.t2 <- effect_sizes.t2 %>%
   rename("yi"="es",
          "vi"="var")
-effect_sizes.t2 <-cbind(fruit.t, effect_sizes.t2)
+effect_sizes.t2 <-cbind(data.t, effect_sizes.t2)
 
 effect_sizes.t2<- effect_sizes.t2 %>%
   select(ACC,Author,Title,Year,Biome,Landscape,Lower_diversity_guild,Higher_diversity_guilds,
@@ -96,16 +102,16 @@ effect_sizes.t2<- effect_sizes.t2 %>%
 
 
 
-##cogemos los que son X2
-fruit.x2 <-datos%>%
+##Chi square
+data.x2 <-data%>%
   filter( Measure.used=="X2")
 
-effect.size_x2 <-esc_chisq(chisq=fruit.x2$Value,totaln=fruit.x2$N,es.type="g")
+effect.size_x2 <-esc_chisq(chisq=data.x2$Value,totaln=data.x2$N,es.type="g")
 effect_sizes.x2<-as.data.frame(effect.size_x2)
 effect_sizes.x2 <- effect_sizes.x2 %>%
   rename("yi"="es",
          "vi"="var")
-effect_sizes.x2 <-cbind(fruit.x2, effect_sizes.x2)
+effect_sizes.x2 <-cbind(data.x2, effect_sizes.x2)
 
 effect_sizes.x2<- effect_sizes.x2 %>%
   select(ACC,Author,Title,Year,Biome,Landscape,Lower_diversity_guild,Higher_diversity_guilds,
@@ -114,16 +120,16 @@ effect_sizes.x2<- effect_sizes.x2 %>%
 
 effect.size.total <- bind_rows(effect_sizes.t2,effect_sizes.x2)
 
-###los que son correlaciones
-fruit.r <-datos%>%
+##correlations:
+data.r <-data%>%
   filter( Measure.used=="r")
 
-effect.size_r<- esc_rpb(r = fruit.r$Value, totaln=fruit.r$N, es.type = "g")
+effect.size_r<- esc_rpb(r = data.r$Value, totaln=data.r$N, es.type = "g")
 effect_sizes.r<-as.data.frame(effect.size_r)
 effect_sizes.r <- effect_sizes.r%>%
   rename("yi"="es",
          "vi"="var")
-effect_sizes.r <-cbind(fruit.r, effect_sizes.r)
+effect_sizes.r <-cbind(data.r, effect_sizes.r)
 
 effect_sizes.r<- effect_sizes.r %>%
   select(ACC,Author,Title,Year,Biome,Landscape,Lower_diversity_guild,Higher_diversity_guilds,
@@ -133,16 +139,16 @@ effect_sizes.r<- effect_sizes.r %>%
 effect.size.total <- bind_rows(effect_sizes.t2,effect_sizes.x2, effect_sizes.r)
 
 
-##con F 
-fruit.f <-datos%>%
+## Fisher´s F
+data.f <-data%>%
   filter(Measure.used=="F")
 
-effect.size_f <-esc_f(f=fruit.f$Value, totaln = fruit.f$N, es.type = "g")
+effect.size_f <-esc_f(f=data.f$Value, totaln = data.f$N, es.type = "g")
 effect_sizes.f<-as.data.frame(effect.size_f)
 effect_sizes.f <- effect_sizes.f%>%
   rename("yi"="es",
          "vi"="var")
-effect_sizes.f <-cbind(fruit.f, effect_sizes.f)
+effect_sizes.f <-cbind(data.f, effect_sizes.f)
 
 effect_sizes.f<- effect_sizes.f %>%
   select(ACC,Author,Title,Year,Biome,Landscape,Lower_diversity_guild,Higher_diversity_guilds,
@@ -152,12 +158,12 @@ effect_sizes.f<- effect_sizes.f %>%
 effect.size.total <- bind_rows(effect_sizes.t2,effect_sizes.x2, effect_sizes.f, effect_sizes.r)
 
 
-###con z value
-fruit.z <-datos%>%
+##z value
+data.z <-data%>%
   filter(Measure.used=="z")
 
-fruit.z$yi <-sqrt((fruit.z$Value*sqrt(fruit.z$N))/ (1- sqrt((fruit.z$Value^2)*(1/fruit.z$N))))
-effect_sizes.z<-as.data.frame(fruit.z)
+data.z$yi <-sqrt((data.z$Value*sqrt(data.z$N))/ (1- sqrt((data.z$Value^2)*(1/data.z$N))))
+effect_sizes.z<-as.data.frame(data.z)
 
 
 effect_sizes.z<- effect_sizes.z %>%
@@ -168,27 +174,12 @@ effect_sizes.z<- effect_sizes.z %>%
 
 effect.size.total <- bind_rows( effect_sizes.t2,effect_sizes.x2, effect_sizes.f, effect_sizes.r, effect_sizes.z)
 
-### Control y Trat
-trat_es<-escalc(m1i=valueC,m2i=valueT,sd1i=SD_C,sd2i=SD_T,
-                     n1i=N.control,n2i=N.treat,data = trat_es,measure = "SMD",
-                     slab=Title)
-
+##add C and T
 effect.size.total <- bind_rows(trat_es, effect_sizes.t2,effect_sizes.x2, effect_sizes.f, effect_sizes.r, effect_sizes.z)
-
 repr.success<- effect.size.total
-write.csv(repr.success, file="RData/effectsizes.csv")
 
-save(repr.success, file="RData/effectsizes.RData")
-
-load("RData/effectsizes.RData")
-
-####DIVIDIR EN COLUMNAS 
-repr.success <- read.csv("RData/effectsizes.csv")
-unique(repr.success$Lower_diversity_guild)
-unique(repr.success$Higher_diversity_guilds)
-
+####CLEAN DATA, CREATE NEW COLUMNS
 repr.success$Lower_diversity_guild <- repr.success$Lower_diversity_guild %>% replace_na("cor.lineal")
-
 
 repr.success<- repr.success %>%  
   mutate("Guild_sp" = case_when(grepl("cor.lineal", Lower_diversity_guild) ~ "Species",
@@ -212,6 +203,8 @@ repr.success<- repr.success %>%
                                             TRUE~"FALSE"))
 table(repr.success$`Exp_no.exp`)  
 
+###About what has been excluded:
+##managed or wild pollinator
 repr.success<- repr.success %>%  
   mutate("Managed_Wild" = case_when(grepl("HB", Lower_diversity_guild) ~ "Managed",
                              grepl("Honey", Lower_diversity_guild) ~"Managed",
@@ -221,7 +214,7 @@ repr.success<- repr.success %>%
                              TRUE ~"Wild"))
 table(repr.success$`Managed_Wild`)
 
-###sobre que es lo que se ha excluido. hay que hacer subset o filter con exlclusion primero
+#vertebrate or invertebrate
 repr.success<- repr.success %>%  
   mutate("Vert_Invert" = case_when(grepl("Vertebrate exclusion", Lower_diversity_guild) ~ "Vertebrate",
                                    grepl("Vertebrate", Lower_diversity_guild) ~ "Vertebrate",
@@ -236,7 +229,7 @@ repr.success<- repr.success %>%
                                   TRUE ~"NA"))
 table(repr.success$`Vert_Invert`)
 
-
+##nocturnal or diurnal
 repr.success<- repr.success %>%  
   mutate("Diurn_Noctur" = case_when(grepl("Nocturnal", Lower_diversity_guild) ~ "Nocturnal",
                                    grepl("Diurnal",Lower_diversity_guild)~"Diurnal", 
@@ -245,7 +238,7 @@ repr.success<- repr.success %>%
 table(repr.success$`Diurn_Noctur`)
 
 
-
+##flying or no flying
 repr.success<- repr.success %>%  
   mutate("Flying_Noflying" = case_when(  grepl("flying/no-flying", Lower_diversity_guild)~"Both",
                                     grepl("no-flying", Lower_diversity_guild)~"No-flying",
@@ -259,12 +252,14 @@ repr.success<- repr.success %>%
 
 table(repr.success$Flying_Noflying)
 
+###crop or no crop observations:
 repr.success<- repr.success %>%  
   mutate("Cultivo" = case_when(  grepl("Agricultural", Landscape)~"Crop",
                                          TRUE ~"No_crop"))
 
 table(repr.success$Cultivo)
 
+##grouping all types of temperate and tropical biomes
 table(repr.success$Biome)
 repr.success<- repr.success %>%  
   mutate("Biomes" = case_when(  grepl("Temperate", Biome)~"Temperate",
@@ -273,9 +268,10 @@ repr.success<- repr.success %>%
                                 grepl("Deserts", Biome)~"Deserts",
                                  TRUE ~"Others"))
 table(repr.success$Biomes)
-#######CAMBIAR SIGNO DEL EFECTO: CUANDO AFECTA MAS LA DISMINUCION DE BIODIVERSIDAD??
+
+#######CHANGE SIGN OF THE EFFECT: WHEN DOES THE DECLINE IN BIODIVERSITY MOST AFFECT??
+##
 repr.success$yi <- -1 * repr.success$yi
 
-write.csv(repr.success,file="RData/effectsizes_clean.csv")
-repr.success <- read.csv("RData/effectsizes_clean.csv")
-
+##save clean data with effect sizes
+write.csv(repr.success,file="data/3.effectsizes_clean.csv")
