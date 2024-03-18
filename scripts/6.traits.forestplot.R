@@ -1,4 +1,12 @@
+#####FOREST PLOT FOR PLANT TRAITS (COMPATIBILITIES)
+rm(list = ls(all.names = TRUE)) 
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
+pacman::p_load(tidyverse,rtry,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
+               ggmap,mapproj,glmulti,MuMIn, RColorBrewer,ggsci)
+#######
 tbl.com<- read.csv("data\\4.complete_table.csv")
+##delete data without effect size (there is one without country, this is removed from the map)
+###remove also observations on abundance and visitation rates
 tbl.com<-tbl.com[!is.na(tbl.com$yi), ]
 unique(tbl.com$Pollinator.variable.measure)
 tbl.com<-tbl.com%>%
@@ -6,18 +14,7 @@ tbl.com<-tbl.com%>%
   filter(!str_detect(Pollinator.variable.measure, "visitation"))
 tbl.com<-tbl.com[!is.na(effect.size.total$vi), ]
 
-
-k <-tbl.com%>%
-  filter(!is.na(Country))
-j <-tbl.com%>%
-  filter(!is.na(Year))
-
-j<-j%>%
-  arrange(yi)%>%
-  slice(-(1:4))
-
-breed<- j%>%
-  filter(!is.na(Breeding_system) & Breeding_system != "" )
+###FILTER FOR INFORMATION OF COMPATIBILITIES
 comp<- tbl.com %>%
   filter(!is.na(IMPUTED_Compatibility) & IMPUTED_Compatibility != "" )
 
@@ -25,21 +22,15 @@ c <-comp%>%
   group_by(IMPUTED_Compatibility,Plant.species.family)%>%
   summarise(n=n())
 
-morfo<- tbl.com %>%
-  filter(!is.na(Flower_morphology) & Flower_morphology != "" )
-color<- tbl.com %>%
-  filter(!is.na(Flower_color) & Flower_color != "" )
-  
-unique(breed$Breeding_system)
+###MODELS
 m0<- rma.mv(yi,vi,random=list(~ 1 | Year, ~ 1 | Title), data=comp, method="ML")
 m0.comp<- rma.mv(yi,vi,mods=~IMPUTED_Compatibility-1, random=list(~ 1 | Year, ~ 1 | Title), data=comp, method="ML")
 anova(m0,m0.comp)
-
+##reml for estimates
 m0.comp.reml<- rma.mv(yi,vi,mods=~IMPUTED_Compatibility-1,random=list(~ 1 | Year, ~ 1 | Title), data=comp, method="REML")
 r2_ml(m0.comp.reml)
 res.comp <- orchaRd::mod_results(m0.comp.reml, mod = "IMPUTED_Compatibility", group = "Title")
 
-unique(comp$IMPUTED_Compatibility)
 library(latex2exp)
 pred.m0.ps<- comp%>%
   filter(IMPUTED_Compatibility=="partially_self_compatible")
@@ -85,7 +76,9 @@ anno.1+anno.2+anno.3+
 plot.comp
 ggsave(plot.comp, filename="RData/figures/comp.png",width = 9, height = 6)    
 
-###el se ve mas afectado en plantas compatibles                                                                                           
+###ORCHARD PLOT FOR SELF COMPATIBLE PLANT SPECIES FOR SUPPL MATERIAL:
+###seed set and fruit weight are more affected in compatible plants than fruit set.                                                                                           
+
 fwe<-tbl.com%>%
   subset(IMPUTED_Compatibility=="self_compatible")
 
@@ -138,17 +131,3 @@ plot.fwe<-orchaRd::orchard_plot(res.fwe, xlab = "Hedges´g", angle = 45, g = FAL
 
 ggsave(plot.fwe, filename="RData/figures/compatiblesp.png",width = 9, height = 6)    
 
-figure.4<-plot_grid(plot.comp,plot.fwe, ncol=2,labels=c("A","B"),label_size = 14,
-                    hjust = -5,scale = c(1,1))
-
-ggsave(figure.4, filename="RData/figures/figure.4.png",width = 16, height = 6)    
-
-
-fig2<-ggplot(comp, aes(x=IMPUTED_Compatibility, y=Plant.species.family, fill=yi)) +
-  geom_tile() +
-  labs(title="Heatmap of effect sizes per plant families and compatibility")
-
-
-fig3<-ggplot(tbl.com, aes(x=Biomes, y=Plant.species.family, fill=yi)) +
-  geom_tile() +
-  labs(title="Heatmap of effect sizes per plant families and biomes")
