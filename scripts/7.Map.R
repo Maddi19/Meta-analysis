@@ -43,7 +43,7 @@ obs.country <- effect.size.total%>%
 
 #try using google maps
 library(ggmap)
-register_google(key="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+register_google(key="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
 
 study_locations<-obs.country$Country
 study_locations<-obs.country$Country
@@ -52,7 +52,7 @@ study_locations<-obs.country$Country
 country_ggmap <- geocode(location = study_locations, output = "more", source = "google")
 
 #join to number of studies
-country_coord_count<-cbind(country_ggmap,obs.country=obs.country$obs.country)
+country_coord_count<-cbind(country_ggmap,obs.country=obs.country$obs_country)
 
 crop_studies <- effect.size.total%>%
   separate_rows(Country,sep=", ")%>%
@@ -87,7 +87,6 @@ install.packages("scatterpie")
 library(scatterpie)
 help(geom_scatterpie)
 
-str(crop_studies)
 
 country_coord_counts$obs.country<- as.numeric(country_coord_counts$obs.country)
 map<-world_map_plot+
