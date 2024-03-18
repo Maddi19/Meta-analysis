@@ -1,20 +1,16 @@
 ######TRY and Lanuza et al plant traits data cleaning#####
 ##########################################################
-
-
-#preparar consola
-rm(list = ls(all.names = TRUE)) #Limpiar objetos ocultos
-pacman::p_unload(pacman::p_loaded(), character.only = TRUE) #Limpiar paquetes ocultos
+rm(list = ls(all.names = TRUE)) 
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
 pacman::p_load(tidyverse,rtry,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
                ggmap,mapproj,glmulti,MuMIn, RColorBrewer,ggsci)
 
-#cargar nuestros datos
-repr.success <- read.csv("data\\3.effectsizes_clean.csv")
-##eliminar datos sin effect size
+##
+repr.success <- read.csv("data/3.effectsizes_clean.csv")
+##delete data without effect size
 trait.1<-repr.success[!is.na(repr.success$yi), ]
 trait.1<-trait.1[!is.na(trait.1$vi), ]
-
-
+###remove also observations on abundance and visitation rates
 trait.1<-trait.1%>%
   filter(!str_detect(Pollinator.variable.measure, "abundance")) %>%
   filter(!str_detect(Pollinator.variable.measure, "visitation"))
@@ -22,18 +18,10 @@ trait.1<-trait.1%>%
 ##751obs
 unique(trait.1$Plant.species)
 
-###crear columna genero
-library("stringr")
-trait.1<- trait.1%>%
-  mutate(Genus= word(Plant.species, 1))
-unique(trait.1$Genus)
-
-
-############################################################333
 #############################################################
 ##############TRY DATA BASE######
 library(rtry)
-trydata <- rtry_import("traits/29811.txt")
+trydata <- rtry_import("data/traits/29811.txt")
 unique(trydata$AccSpeciesName)
 unique(trydata$TraitName)
 
@@ -55,8 +43,7 @@ rtry_explore(trydata, AccSpeciesID, AccSpeciesName, TraitID, TraitName)  # recor
 rtry_explore(trydata, DataID, DataName, TraitID, TraitName, sortBy = TraitID)  # records by DataName
 
 
-# 3.Clean data ------------------------------------------------------------
-
+# 3.Clean data --
 # 1.Select target cols (wd = workdata)
 wd <- rtry_select_col(trydata, ObsDataID, ObservationID, AccSpeciesID,
                       AccSpeciesName, ValueKindName, TraitID, TraitName, 
@@ -183,7 +170,7 @@ traits$Flower_color<- recode(traits$Flower_color, "gelb"= "Yellow",
                              "green"="Green")
 
 
-##hay mutiples valores para un trait y una misma especie. Vamos a juntarlos
+##there are multiple values for one trait and one species. Let's put them together
 df_collapsed <- traits %>%
   group_by(AccSpeciesName) %>%
   summarise(
@@ -194,7 +181,7 @@ df_collapsed <- traits %>%
     Flower_insemination_autogamous_or_xenogamous= paste(na.omit(Flower_insemination_autogamous_or_xenogamous), collapse = ", "),
     Species_reproduction_type= paste(na.omit(Species_reproduction_type), collapse = ", "),
     Flower_corolla_type= paste(na.omit(Flower_corolla_type), collapse = ", "))
-##hay info para 85 especies
+##there is info for 85 species
 
 
 #delete data of plant community, more than one plant species
@@ -204,7 +191,7 @@ trait.1<- trait.1 %>%
 unique(trait.1$Plant.species.family)
 
 
-##probar cuantos coinciden de nuestros datos trait.1:
+##test how many of our trait.1 data matches:
 traits.1<- trait.1 %>% 
   left_join(df_collapsed, by=c(Plant.species="AccSpeciesName"))%>%
   group_by(Flower_color,Plant.species)%>%
@@ -262,7 +249,7 @@ df_collapsed$Flower_color<- recode(df_collapsed$Flower_color,
                                    "Yellow and Green, Yellow"="Yellow",
                                    "Pink, Pink"="Pink")
 
-##agrupar por gamas de colores: amarillos, verdes, rosamorados,blancos, azules, rojos, muchos fenotipos.
+#group by colour ranges: yellows, greens, pinks, whites, blues, reds, many phenotypes.
 df_collapsed$Flower_color<- recode(df_collapsed$Flower_color,
                                    "White/Pink"="w_wp",
                                    "Pink/White"="w_wp",
@@ -301,23 +288,17 @@ traits.1$outlier <- traits.1$upperci < m0$ci.lb | traits.1$lowerci > m0$ci.ub
 # Count number of outliers:
 sum(traits.1$outlier)
 traits.1[traits.1$outlier, c("yi", "upperci", "lowerci")]
-##eliminamos 5 datos de outliers
-traits.1<-traits.1%>%
-  arrange(yi)%>%
-  slice(-(1:4))
-tail(traits.1$yi)
 
 
-
-##añadir info de Lanuza:
-##cargar dataset traits de Lanuza
+##add info from Lanuza et al paper:
+##load dataset traits de Lanuza
 library(readxl)
-data.trait <- readxl::read_excel("traits\\Lanuza_data.xlsx")
+data.trait <- readxl::read_excel("data/traits/Lanuza_data.xlsx")
 data.trait<-data.trait[!is.na(data.trait$Species_all), ]
 data.trait<- data.trait%>%
   select(c(10,12:17,Flower_colour, Flower_morphology, Flowers_per_plant))
 
-##hay mutiples valores para un trait y una misma especie. Vamos a juntarlos
+##There are multiple values for one trait and one species. Let's combine them.
 dt_collapsed <- data.trait %>%
   group_by(Species_all) %>%
   summarise(
@@ -330,13 +311,10 @@ dt_collapsed <- data.trait %>%
     Autonomous_selfing_level= paste(na.omit(Autonomous_selfing_level), collapse = ", "),)
 
 
-
 traits_total<- traits.1 %>% 
   left_join(dt_collapsed, by=c(Plant.species="Species_all"))
 
-
-
-##rellenar color de la flor con lso datos de lanuza
+##Use Lanuza data to fill in flower colour
 traits_total <- traits_total %>%
   mutate(Flower_color= coalesce(Flower_color, Flower_colour))
 traits_total$Flower_color<- recode(traits_total$Flower_color,
@@ -349,10 +327,10 @@ traits_total$Flower_color<- recode(traits_total$Flower_color,
                                    "white_yellow"="w_wp"
 )
 
-##rellenar con try los datos de breeding sistem en columna de lanuza:
+#fill in with try data the breeding system data in lanuza´s column:
 traits_total <- traits_total %>%
   mutate(Breeding_system= coalesce(Breeding_system, word(Flower_sex, 1, sep = ", ")))
-#quedarnos con la primera palabra antes de la coma, porque se repite info 
+#Stay with the first word before the comma, as this is repeated information. 
 traits_total$Breeding_system <- word(traits_total$Breeding_system , 1, sep = ", ")
 unique(traits_total$Breeding_system)
 traits_total$Breeding_system <- recode(traits_total$Breeding_system ,
@@ -363,7 +341,7 @@ traits_total$Breeding_system <- recode(traits_total$Breeding_system ,
 
 
 
-##añadir info de try a columna lanuza de compatibilidad:
+##add try info to the compatibility column of Lanuza´s data:
 traits_total <- traits_total %>%
   mutate(IMPUTED_Compatibility= coalesce(IMPUTED_Compatibility, word(`Flower_sexual_self-incompatibility_mechanism`, 1, sep = ", ")))
 
@@ -381,7 +359,7 @@ traits_total$IMPUTED_Compatibility <- recode(traits_total$IMPUTED_Compatibility,
 traits_total$IMPUTED_Compatibility[traits_total$IMPUTED_Compatibility == "dioecious"] <- NA
 traits_total$IMPUTED_Compatibility[traits_total$IMPUTED_Compatibility == "monoecious, monoecious"] <- NA
 traits_total$Sex_or_flower_type[traits_total$Sex_or_flower_type == "NA"] <- NA
-#nos quedamos primera palabra, info repetida
+#we remain the first word, the information is repeated
 traits_total$IMPUTED_Compatibility <- word(traits_total$IMPUTED_Compatibility , 1, sep = ", ")
 traits_total$Flower_morphology <- word(traits_total$Flower_morphology , 1, sep = ", ")
 traits_total$Flowers_per_plant <- word(traits_total$Flowers_per_plant  , 1, sep = ", ")
@@ -393,6 +371,7 @@ info_comp <- traits_total%>%
   group_by(Plant.species.family,Genus,Plant.species,IMPUTED_Compatibility)%>%
   summarise(n=n())
 
+##Fill in genus and family information
 traits_total<-traits_total%>%
   mutate(IMPUTED_Compatibility = case_when(
     IMPUTED_Compatibility=="self-compatibel family" & Plant.species.family == "Apiaceae" ~ "self_compatible",
@@ -401,194 +380,8 @@ traits_total<-traits_total%>%
     Genus== "Vaccinium" ~ "self_compatible",
     TRUE~IMPUTED_Compatibility))
 
-write.csv(traits_total, "data\\4.complete_table.csv")
+write.csv(traits_total, "data/4.complete_table.csv")
 
-
-unique(traits_total$Flower_color)
-traits_sub.col_breed<- traits_total%>%
-  filter(!is.na(Flower_color) & Flower_color != "" & !is.na(Breeding_system) & Breeding_system != "" )
-
-
-traits_sub.col_breed<- traits_sub.col_breed%>%
-  select(Flower_color, Breeding_system, IMPUTED_Compatibility, Flower_morphology, Flowers_per_plant,Plant.species, Plant.species.family, Genus, yi, Title)
-
-
-##si queremos convertir los colores en binario
-##al final nada-
-unique(traits_sub.col_breed$Flower_color)
-col_binary <- traits_sub.col_breed %>%
-  mutate(yesno = 1) %>%
-  distinct%>%
-  spread(Flower_color, yesno, fill = 0)
-
-col_select <- col_binary%>%
-  select(Plant.species,Genus,5:24)
-
-
-##para hacer analisis de correspondencia
-install.packages("FactoMineR")
-install.packages("factoextra")
-library(FactoMineR)
-library(factoextra)
-
-
-# Realizar el MCA
-variables_mca<- traits_sub.col_breed%>%
-  select(Genus, yi, Flower_color, Breeding_system, IMPUTED_Compatibility, Flowers_per_plant, Flower_morphology, Flowers_per_plant)
-mca_result <- MCA(variables_mca)
-
-fig<-fviz_mca_var(mca_result,repel=TRUE, choice = "mca.cor",
-                  col.var="steelblue", arrow = c(FALSE, TRUE),
-                  title="Multiple Correspondence Analysis: Variables´correlations",
-                  ggtheme = theme_minimal())
-
-ggsave(fig, filename="RData/figures/MCA.png",
-       width = 6, height = 5)
-
-fviz_mca_biplot(mca_result, repel=T, choice="mca.cor")
-
-fviz_mca_var(mca_result, col.var = "contrib",repel=TRUE, habillage="Genus",
-             palette.colors=(values=P30),  
-             ggtheme = theme_minimal())
-
-
-
-pal_uchicago()
-ggplot(traits_sub.col_breed, aes(x = yi, y = Genus, color = Flower_color)) +
-  scale_color_d3()+
-  geom_point() +
-  labs(title = "Scatter Plot of yi vs. Genus")
-
-ggplot(traits_sub.col_breed, aes(x = yi, y = Genus, color = Breeding_system)) +
-  scale_color_d3()+
-  geom_point() +
-  labs(title = "Scatter Plot of yi vs. Genus")
-
-
-fig1<-ggplot(traits_sub.col_breed, aes(x=Flower_color, y=Plant.species.family, fill=yi)) +
-  geom_tile() +
-  labs(title="Heatmap of effect sizes per plant families and flower color")
-
-ggsave(fig1, filename="RData/figures/heatmap.png",
-       width = 8, height = 5)
-
-fig2<-ggplot(traits_sub.col_breed, aes(x=IMPUTED_Compatibility, y=Plant.species.family, fill=yi)) +
-  geom_tile() +
-  labs(title="Heatmap of effect sizes per plant families and compatibility")
-
-ggsave(fig2, filename="RData/figures/heatmap.png",
-       width = 8, height = 5)
-
-
-library(plotly)
-# Crear un gráfico interactivo de dispersión en 3D
-##nada solo perder tiempo viebdo q se pueden hacer estas cosas
-
-unique(traits_sub.col_breed$Flower_color)
-unique()
-P30 <- c("#E64B35B2","#4DBBD5B2", "#6A6599FF", "#FFB84D","#3A6589","#9B5672","#DB735C")
-fig <- plot_ly(traits_sub.col_breed, x = ~Flower_color, y = ~Plant.species.family, z = ~yi,
-               color = ~Flower_color, colors = P30,
-               text = ~paste("Genero: ", Genus, "<br>Especie: ", Plant.species,
-                             "<br>Breeding system:", Breeding_system, "<br>Compatibility:", IMPUTED_Compatibility,
-                             "<br>Flower morphology:", Flower_morphology),
-               marker = list(symbol = 'circle', sizemode = 'diameter'),
-               type = "scatter3d", mode = "markers") 
-
-# Agregar etiquetas y título
-fig <- fig %>% layout(scene = list(xaxis = list(title = 'Color de Flor'),
-                                   yaxis = list(title = 'Género'),
-                                   zaxis = list(title = 'Tamaño del Efecto')),
-                      title = 'Relación Interactiva entre Variables')
-
-# Mostrar el gráfico
-fig
-
-
-##creandp paletas de colores
-library(Polychrome)
-##para crear paletas de colores
-set.seed(935234)
-P30 <- createPalette(30, c("#E64B35B2","#4DBBD5B2", "#6A6599FF", "#FFB84D","#3A6589","#9B5672","#DB735C"), range = c(30, 180), M=1000)
-swatch(P30)
-names(P30) <- NULL
-
-library(RColorBrewer)
-##otras formas de crear paleta de colores
-n<-35
-qual_cols<-brewer.pal.info[brewer.pal.info$category=="qual",]
-col_vector<- unlist(mapply(brewer.pal, qual_cols$maxcolors, rownames(qual_cols)))
-pie(rep(1,n), col=sample(col_vector,n))
-colse<-sample(col_vector,n)
-
-color<- grDevices::colors()[grep("gr(a|e)y", grDevices::colors(),invert=TRUE)]
-set.seed(26934)
-cols<- sample(color,n)
-pie(rep(1,n),col=sample(color,n))
-
-p1<-ggplot(traits_breed, aes(x=IMPUTED_Compatibility, y=yi)) +
-  geom_boxplot()+
-  geom_jitter(aes(color=Plant.species.family))+
-  geom_tile() +
-  scale_colour_manual(values=cols)  +
-  labs(title="Effect sizes by breeding systems colored as plant family")
-
-traits_sub.col_breed$Flowers_per_plant<-as.numeric(traits_sub.col_breed$Flowers_per_plant)
-traits_fl_count<-traits_sub.col_breed%>%
-  arrange(desc(Flowers_per_plant))%>%
-  slice(-(1:2))
-
-ggplot(traits_fl_count, aes(x=Flowers_per_plant, y=yi)) +
-  geom_point()+
-  geom_smooth(stat="")
-
-
-#############################GLMM-s 
-library(lme4)
-# Create a subset of your data without missing values
-traits_sub_no_na <- na.omit(traits_sub.col_breed[, c("yi", "Title","Flower_color", "Flowers_per_plant", "Flower_morphology", "Breeding_system", "IMPUTED_Compatibility", "Genus", "Plant.species.family")])
-
-full <- lmer(yi~ Flower_color+ Flowers_per_plant+ Flower_morphology + Breeding_system + IMPUTED_Compatibility+ 
-               Genus + Plant.species.family+ (1|Title), 
-             data=traits_sub_no_na)
-library(MuMIn)
-res <- MuMIn::dredge(full, trace=4)
-subset(res, delta <= 2, recalc.weights=FALSE)
-
-traits_sub$Flowers_per_plant <- as.numeric(traits_sub$Flowers_per_plant)
-
-model<- lmer(yi~ Breeding_system + IMPUTED_Compatibility+ 
-               IMPUTED_Compatibility_sp_level+ (1|Title), 
-             data=traits_sub, na.action = na.pass)
-##primero aparece flower color con mucha colinearidad
-##despues de quitarlo: flowers per plant tambien la tiene muy alta
-##nos quedamops con esas tres variables.
-
-summary(model)
-hist(residuals(model))
-library(performance)
-check_model(model)
-library(easystats)
-model_dashboard(model)
-##residuales no normalidad
-
-library(effects)
-plot(allEffects(model.1))
-library(sjPlot)
-##plotea valores predictivos del modelo
-plot_model(model, type = "eff")
-
-##ploteo de resultado preliminares del modelo
-library(modelbased)
-estimate_means(model)
-library(visreg)
-visreg(model)
-
-model.1<- lmer(yi~ Flower_colour + Flowers_per_plant + (1|Title), 
-               data=traits_sub)
-visreg(model.1)
-
-###ORCHARD PLOT FOR TRAITS:
 
 
 
