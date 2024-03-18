@@ -1,42 +1,13 @@
-#########1.DATA CLEANING#####
-###########################
-
-rm(list = ls(all.names = TRUE)) #Limpiar objetos ocultos
-pacman::p_unload(pacman::p_loaded(), character.only = TRUE) #Limpiar paquetes ocultos
+#########1.DATA CLEANING##################
+############################################
+rm(list = ls(all.names = TRUE)) 
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
 pacman::p_load(dplyr, tidyverse, tidyr, readxl,readr, metafor) 
 
-datos <- read_excel("data/data_table.xlsx")
+data <- read_excel("data/1.data_table.xlsx")
 
-unique(datos$ACC)# 262 estudios, 896 observaciones
-unique(datos$Country) #58paises
-unique(datos$Year)
-table(datos$Year) ## cada pais cuantas obs tiene
-#Mexico 111, USA 97, S.Africa 66
-#Canada 51, China 58, Brazil 57
-#spain 51 (21 de canarias), Australia 32
-
-##cada pais cuantos estudios tiene
-estudios.pais <- datos%>%
-  group_by(datos$Country)%>%
-  summarise(estudios.pais=n_distinct(ACC))
-
-##brazil 21, Aus 16, mexico 15, China 15, S.Africa 26 , usa 33, spain 18 
-
-unique(datos$`Plant species`) 
-unique(datos$`Plant species family`) ## 75 familias y 269 especies
-
-familias <- datos %>%
-  group_by(`Plant species family`)%>%
-  summarise(family=n_distinct(ACC))
-##brassicaceae 17 estudios, cactaceae 20, ericaceae 16, fabaceae 14,
-# proteaceae 17, rosaceae 28, cucurbitaceae y rubiaceae 11
-
-unique(datos$`Pollinator guilds`)
-
-unique(datos$`Insects vs OtherTaxa`)
-
-unique(datos$Landscape)
-datos$Landscape <- recode(datos$Landscape, "beech forest"= "Forest",
+unique(data$Landscape)
+data$Landscape <- recode(data$Landscape, "beech forest"= "Forest",
                           "beech forest, pasture"="Forest",
                           "dry forest"= "Forest",
                           "pastured forest"="Forest",
@@ -116,55 +87,23 @@ datos$Landscape <- recode(datos$Landscape, "beech forest"= "Forest",
                           )
 
 
-unique(datos$Landscape)
-table(datos$Landscape)
-##360 obs agricultural, 195 shrubland, 157 forest
+unique(data$Landscape)
+table(data$Landscape)
 
-##cuantos tipos de habitat por estudio
-habitat.pais <- datos%>%
-  group_by(Landscape)%>%
-  summarise(habitat.pais=n_distinct(ACC))
-##101 estudios de agricultura, 56 de shrubland, 48 forest
-
-unique(datos$Biome)
-datos$Biome <- recode(datos$Biome, "Temperate broadleaf & mixed forest"="Temperate Broadleaf & Mixed Forests",
+unique(data$Biome)
+data$Biome <- recode(data$Biome, "Temperate broadleaf & mixed forest"="Temperate Broadleaf & Mixed Forests",
                       "Temperate Grasslands, Savannas &"="Temperate Grasslands, Savannas & Shrublands",
                       "Temperate Broadleaf & Mixed Fore"="Temperate Broadleaf & Mixed Forests",
                       "Temperate Broadleaf & Mixed forest"="Temperate Broadleaf & Mixed Forests",
                       "Temperate"="Temperate Broadleaf & Mixed Forests",
                       "Temperate Broadleaf & Mixed Forest"="Temperate Broadleaf & Mixed Forests")
 
-                     
-                
-unique(datos$Biome)
-table(datos$Biome)
-##287 temperate broadleaf mixed forest
-## 107 desert
-##128tropical & subtropical moist broadleaf forest
-#101 Mediterranean
+                  
+unique(data$Biome)
+table(data$Biome)
 
-##cantidad de biomas por estudio
-Biomes<- datos%>%
-  group_by(Biome)%>%
-  summarise(pais.biome=n_distinct(ACC))
-#81 estudios de Temperate Forest, 38 de Tropical Forest, 35 Mediterranean
-
-Biome<- datos%>%
-  group_by(Biome,Country)%>%
-  summarise(pais.biome=n_distinct(ACC))
-
-
-pais.habitat<- datos%>%
-  group_by(Landscape,Country)%>%
-  summarise(pais.habitat=n_distinct(ACC))
-
-## de agricultura, 10 estudios son de la india, 16 de USA, 7 Indonesia
-#de forest, brazil 10, aus 7,
-##grassland s.africa 9,
-##shrubland aus 7, mexico 9, s africa 12, 
-
-##Categorizar cuando son estudios de guild diversity.
-datos$Lower_diversity_guild<- recode(datos$Lower_diversity_guild,
+######Categorise when they are guild diversity studies
+data$Lower_diversity_guild<- recode(data$Lower_diversity_guild,
                                       "birds excluded"="Vertebrate Diurnal flying exclusion",
                                      "Nocturnal visitors"="Diurnal exclusion",
                                      "Diurnal visitors"="Nocturnal exclusion",
@@ -234,14 +173,31 @@ datos$Lower_diversity_guild<- recode(datos$Lower_diversity_guild,
                             
                        )
 
-unique(datos$Lower_diversity_guild)
-table(datos$Lower_diversity_guild)
+unique(data$Lower_diversity_guild)
+table(data$Lower_diversity_guild)
 
-##Categorizar medidas de exito reproductivo.
-unique(datos$`Reproductive succes measure`)
-table(datos$`Reproductive succes measure`)
+unique(data$Higher_diversity_guilds)
+table(data$Higher_diversity_guilds)
+data$Higher_diversity_guilds<- recode(data$Higher_diversity_guilds,
+                                      "all insect visitors"="all visitors",
+                                      "honeybees"="Honeybee",
+                                      "fly species"="flying pollinators",
+                                      "solitary bees, bumblebees, honeybees"="all visitors",
+                                      "Bees,flies and ants"="all visitors",
+                                      "non-apis bees"="bees",
+                                      "bees, hoverflies and butterflies"="all visitors",
+                                      "halictic bees + orchid bee"="sp2",
+                                      "syrphid flies"="hoverflies",
+                                      "Native bee"="wild bees",
+                                      "meliponina bees"="wild bees"
+                                      
+)
 
-datos$`Reproductive succes measure` <- recode(datos$`Reproductive succes measure`,
+####Categorising measures of reproductive success
+unique(data$`Reproductive succes measure`)
+table(data$`Reproductive succes measure`)
+
+data$`Reproductive succes measure` <- recode(data$`Reproductive succes measure`,
                                               "frui set"="fruit set",
                                               "fruit mass"="yield",
                                               "fruit set (%)"="fruit set",
@@ -311,34 +267,11 @@ datos$`Reproductive succes measure` <- recode(datos$`Reproductive succes measure
                                               "Pollen tubes per stigma (logx+1)"="Pollen load",
                                               )
 
-unique(datos$`Reproductive succes measure`)
-table(datos$`Reproductive succes measure`)
-
-
-unique(datos$Higher_diversity_guilds)
-table(datos$Higher_diversity_guilds)
-datos$Higher_diversity_guilds<- recode(datos$Higher_diversity_guilds,
-                                       "all insect visitors"="all visitors",
-                                       "honeybees"="Honeybee",
-                                       "fly species"="flying pollinators",
-                                       "solitary bees, bumblebees, honeybees"="all visitors",
-                                       "Bees,flies and ants"="all visitors",
-                                       "non-apis bees"="bees",
-                                       "bees, hoverflies and butterflies"="all visitors",
-                                       "halictic bees + orchid bee"="sp2",
-                                       "syrphid flies"="hoverflies",
-                                       "Native bee"="wild bees",
-                                       "meliponina bees"="wild bees"
-                                       
-                                  )
-
-unique(datos$Year)
-table(datos$Year)
-datos<-datos%>%
-  filter(!is.na(Year))
+unique(data$`Reproductive succes measure`)
+table(data$`Reproductive succes measure`)
 
 ##clean Plant.species column in our database
-datos$`Plant species`<- recode(datos$`Plant species`, 
+data$`Plant species`<- recode(data$`Plant species`, 
                                "Mango"="Mangifera indica",
                                "Amygdalus persica"="Prunus persica",
                                "Aloe peglerae"="Aloe plegerae",
@@ -369,10 +302,10 @@ datos$`Plant species`<- recode(datos$`Plant species`,
                                "Litchi chinenis"="Litchi chinensis",
                                "Lophocereus schotti"="Pachycereus schottii")
 
-datos[grep("Rhabdothanus", datos$Plant.species), ]
 
-##or create new column genus now:
-datos<- datos%>%
+
+####create new column genus:
+data<- data%>%
   mutate(Genus= word(`Plant species`, 1))
 #fill genus column with new names
 #datos<- datos%>%
@@ -381,7 +314,7 @@ datos<- datos%>%
    # TRUE~Genus))
 
 #fill plant species family column
-datos<- datos%>%
+data<- data%>%
   mutate(`Plant species family` = case_when(
     is.na(`Plant species family`) & `Plant species` == "Mangifera indica" ~ "Anacardiaceae",
     is.na(`Plant species family`) & `Plant species` == "Clerodendrum molle" ~ "Lamiaceae",
@@ -394,16 +327,15 @@ datos<- datos%>%
     is.na(`Plant species family`) & `Plant species`== "Metrosideros excelsa" ~ "Myrtaceae",
     TRUE~`Plant species family`))
 
-unique(datos$`Plant species`)
-#276sp
+unique(data$`Plant species`)
 unique(datos$`Plant species family`)
-#78familias
+
 write.csv(datos,"data\\clean_data.csv" )
 
-##info de familias, genero y especie
-info_sp <- datos %>%
-  group_by(`Plant species family`,Genus,`Plant species`,)%>%
-  summarise(n=n())
+##info plant species, families and genus studied:
+#info_sp <- datos %>%
+ # group_by(`Plant species family`,Genus,`Plant species`,)%>%
+ # summarise(n=n())
 
-write.csv(info_sp, "data\\plant_info_table.csv")
+#write.csv(info_sp, "data\\plant_info_table.csv")
  
