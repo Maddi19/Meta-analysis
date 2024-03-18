@@ -1,13 +1,15 @@
-######### FIGURAS FOREST PLOT EFFECT SIZES
-rm(list = ls(all.names = TRUE)) #Limpiar objetos ocultos
-pacman::p_unload(pacman::p_loaded(), character.only = TRUE) #Limpiar paquetes ocultos
+######### FIGURES ORCHARD PLOT FOR EFFECT SIZES#####
+
+rm(list = ls(all.names = TRUE)) 
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
 pacman::p_load(tidyverse,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
                ggmap,mapproj,glmulti,MuMIn, devtools)
 devtools::install_github("daniel1noble/orchaRd", force = TRUE)
 library(orchaRd)
-repr.success <- read.csv("RData/effectsizes_clean.csv")
+repr.success <- read.csv("data/3.effectsizes_clean.csv")
 
-##eliminar datos sin effect size (hay uno sin country, este se quita del mapa)
+##delete data without effect size (there is one without country, this is removed from the map)
+###remove also observations on abundance and visitation rates
 effect.size.total<-repr.success[!is.na(repr.success$yi), ]
 unique(effect.size.total$Pollinator.variable.measure)
 effect.size.total<-effect.size.total%>%
@@ -19,40 +21,40 @@ effect.size.total<-effect.size.total[!is.na(effect.size.total$vi), ]
 
 effect.size.total$Plant.species<- recode(effect.size.total$Plant.species,  
                                "Brassica oleracea var.capita"="Brassica oleracea var.capitata")
-unique(effect.size.total$Plant.species)##220 sp, quitando tres de comunidad una misma sp roja y blanca
+unique(effect.size.total$Plant.species)##220 sp, removing three about community effect and same sp red and white.
 unique(effect.size.total$Plant.species.family)#65 fam
 unique(effect.size.total$Title)#200 estudios,751 obs
 
-###info que tenemos:
+##INFO THAT WE HAVE
 effect.size.total$Country <- recode(effect.size.total$Country, "Perú"="Peru",
                                     
                                     "Spain, Canary Islands"="Canary Islands",
                                     "England"="UK")
 
-estudios.pais <- effect.size.total%>%
+studies_country <- effect.size.total%>%
   separate_rows(Country,sep=", ")%>%
   separate_rows(Country,sep=" & ")%>%
   filter(!is.na(Country))%>%
   group_by(Country)%>%
-  summarise(obs.pais=n(),
-         estudios.pais=n_distinct(Title))
+  summarise(obs.country=n(),
+            studies_country =n_distinct(Title))
 
 
-estudios.pais<-estudios.pais%>%
-  mutate(total.estudios=sum(estudios.pais),
-             total.obs=sum(obs.pais),
-           percentage.est=(estudios.pais/total.estudios)*100,
-           percentage.obs=(obs.pais/total.obs)*100)
+studies_country<- studies_country%>%
+  mutate(total.studies=sum(studies_country),
+             total.obs=sum(obs.country),
+           percentage.est=(studies_country/total.studies)*100,
+           percentage.obs=(obs.country/total.obs)*100)
 
 ##lollipop chard
-estudios<-estudios.pais%>%
+studies<- studies_country%>%
   mutate(percentage.est=scales::number(percentage.est, accuracy=0.1))%>%
   mutate(percentage.obs=scales::number(percentage.obs, accuracy=0.1))
 
-estudios$percentage.est<-as.numeric(estudios$percentage.est)
-estudios$percentage.obs<-as.numeric(estudios$percentage.obs)
+studies$percentage.est<-as.numeric(studies$percentage.est)
+studies$percentage.obs<-as.numeric(studies$percentage.obs)
 
-lolli<- estudios %>% 
+lolli<- studies%>% 
   arrange(percentage.est) %>% 
   mutate(Country=forcats::fct_inorder(Country))%>%
   ggplot()+
@@ -77,14 +79,14 @@ lolli<- estudios %>%
 lolli
 
 ##barplot
-estudios<-estudios %>%
+studies<-studies %>%
   pivot_longer(cols = starts_with("percen"), names_to = "percentage", values_to = "count")
 
 
-estudios<-estudios%>%
+studies<-studies%>%
   mutate(Country=factor(Country, levels=unique(Country)))
 
-p.c<- estudios %>% 
+p.c<- studies %>% 
   arrange(percentage, (count)) %>% 
   mutate(Country=forcats::fct_inorder(Country))%>%
   ggplot(aes(x=count,y=Country,fill=percentage))+
@@ -105,7 +107,7 @@ p.c<- estudios %>%
   scale_fill_manual(values = c("#E64B35B2","#358DB9"),labels = c("% Number of studies", "% Number of observations"))
 p.c 
 
-##familias mas estudiadas
+##most studies families
 fams.studied<- effect.size.total%>%
   group_by(Plant.species.family)%>%
   summarise(n.family=n())
@@ -138,7 +140,6 @@ library(ggthemes)
 library(grDevices)
 library(colorspace)
 library(RColorBrewer)
-
 library(ggpubr)
 
 colors<-get_palette("uchicago",16)
@@ -175,23 +176,23 @@ figure.3<-plot_grid(fig.3, bottom.3, ncol=1,
 ggsave(bottom.3, filename="RData/figures/multipanel.png",
        width = 9, height = 6)
 
-###biomas mas estudiados:
+###most studied biomes
 unique(effect.size.total$Biome)
-biomas <- effect.size.total%>%
+biomes <- effect.size.total%>%
   filter(!is.na(Biome))%>%
   group_by(Biome)%>%
   summarise(n.biome=n())
 
-biomas.est<-biomas%>%
+biomes.est<-biomes%>%
   mutate(total.obs=sum(n.biome),
          percentage.b=(n.biome/total.obs)*100,
          percentage.b=scales::number(percentage.b, accuracy=0.1))
 
-biomas.est$percentage.b<- as.numeric(biomas.est$percentage.b)
-biomas.est<-biomas.est%>%
+biomes.est$percentage.b<- as.numeric(biomes.est$percentage.b)
+biomes.est<-biomes.est%>%
   mutate(Biome=factor(Biome, levels=unique(Biome)))
 
-p.b<- biomas.est %>% 
+p.b<- biomes.est %>% 
   arrange(c(percentage.b)) %>% 
   mutate(Biome=forcats::fct_inorder(Biome))%>%
   ggplot(aes(x=percentage.b,y=Biome, fill="#358DB9"))+
@@ -210,7 +211,7 @@ p.b<- biomas.est %>%
   scale_fill_manual(values = c("#358DB9"))
 p.b
 
-##habitats
+##most studies habitats
 land <- effect.size.total%>%
   filter(!is.na(Landscape)& !Landscape %in% c("Experimental"))%>%
   group_by(Landscape)%>%
@@ -309,13 +310,8 @@ p
 
 ggsave(p, filename="RData/figures/fig.s2.png",
        width = 7.5, height = 5)  
+
 ##multipanel figure
-multi.p<-plot_grid(p, p.c, p.b,p.l, donus, donus.type, labels=c("A","B","C","D","E","F"), label_size = 14,
-                   ncol=2, nrow =3, hjust = -2, scale=c(0.7,1.15,1,0.7,1,1))
-
-cowplot::save_plot("RData/figures/multipanel.png", multi.p, base_height = 13.2, base_width = 9)
-
-##otra forma:
 cowbc<- plot_grid(p,NULL,p.l, labels=c("B","","C"),
                   rel_heights = c(1, 0.01, 1),
                   ncol=1,hjust=-3, label_size=14)
@@ -340,7 +336,7 @@ multipanel.fig<- plot_grid(multi,cowd,donus.multi, ncol=1,
                            rel_heights = c(5.2,3,6.5), scale=c(1,0.8,1))
 cowplot::save_plot("RData/figures/multipanelfigure.1.png", multipanel.fig, base_height = 13.2, base_width = 9)
 
-####MODELOS NULOS
+####NULL MODELS
 m0<- rma.mv(yi,vi, random= ~1|Title, data=effect.size.total, method="ML")
 m1<- rma.mv(yi,vi, random= ~1|Country, data=effect.size.total,method="ML")
 m2<- rma.mv(yi,vi, random= ~1|Year, data=effect.size.total,method="ML")
@@ -373,103 +369,9 @@ effect.size.total$Reproductive.succes.measure<-recode(effect.size.total$Reproduc
                                                       "Yield"="yield")
 
 #######ORCHARD PLOT
-# We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
-# We fit the model without intercept to get estimated effect (slope) for each level of a categorical moderator
-m3<- rma.mv(yi,vi, random=  list(~ 1 | Year, ~ 1 | Title), data=effect.size.total,method="ML")
-rep.su <- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="ML")
-anova(rep.su, m3)
-# We fit the model with REML to get estimates
-rep.reml <- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="REML")
-summary(rep.reml)
-# We calculate marginal R^2 of model with moderator
-r2_ml(rep.reml)
-
-# We now fit the same model with the intercept to calculate the heterogeneity explained by the levels of the moderator
-rep.reml.intercept <- rma.mv(yi,vi,mods=~Reproductive.succes.measure,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="REML")
-summary(rep.reml.intercept)
-
-#tabla
-tabla.measures <- flextable::flextable(mod_results(rep.reml, group = "Title", mod = "Reproductive.succes.measure", 
-                                                   at = list(Reproductive.succes.measure = c("fruit set", "seed set", "fruit weight")), subset = TRUE)$mod_table)
-
-tabla.measures <- flextable::color(tabla.measures, part = "footer", color = "#666666")
-tabla.measures<- flextable::set_caption(tabla.measures, caption = "Effect of pollinator diversity loss")
-tabla.measures
-
-
-res <- orchaRd::mod_results(rep.reml, mod = "Reproductive.succes.measure", group = "Title",
-                            at = list(Reproductive.succes.measure = c("fruit set", "seed set", "fruit weight")), subset = TRUE)
-
-
 install.packages("latex2exp")
 library(latex2exp)
-
-##ver los datos de fruit weight
-frutos<-effect.size.total%>%
-  filter(Reproductive.succes.measure %in% c("fruit set","fruit weight"))
-
-f <-frutos%>%
-  group_by(Title, Plant.species)%>%
-  mutate(medidas.repro= n_distinct(Reproductive.succes.measure))
- 
-datos.fw.fs <- f%>%
-  select(Title,medidas.repro, Reproductive.succes.measure, yi, Plant.species)%>%
-  filter(medidas.repro=="2")%>%
-  group_by(Title, Plant.species, Reproductive.succes.measure)%>%
-  summarise(mean=mean(yi))
-##
-
-pred.m0.fw<- effect.size.total%>%
-  filter(Reproductive.succes.measure=="fruit weight")
-k.1 <- dim(pred.m0.fw)[1]
-stdy.1 <- pred.m0.fw %>% summarise(stdy = length(unique(Title)))
-anno.1 <- annotate("text", x = 3.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
-
-pred.m0.ss<- effect.size.total%>%
-  filter(Reproductive.succes.measure=="seed set")
-k.2<- dim(pred.m0.ss)[1]
-stdy.2 <- pred.m0.ss %>% summarise(stdy = length(unique(Title)))
-anno.2 <- annotate("text", x = 2.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
-
-pred.m0.fs<- effect.size.total%>%
-  filter(Reproductive.succes.measure=="fruit set")
-k.3 <- dim(pred.m0.fs)[1]
-stdy.3 <- pred.m0.fs %>% summarise(stdy = length(unique(Title)))
-anno.3 <- annotate("text", x = 1.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.3, " (", stdy.3, ")")))
-
-pred.m0.fy<- effect.size.total%>%
-  filter(Reproductive.succes.measure=="yield")
-k.4 <- dim(pred.m0.fy)[1]
-stdy.4 <- pred.m0.fy %>% summarise(stdy = length(unique(Title)))
-anno.4 <- annotate("text", x = 4.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.4, " (", stdy.4, ")")))
-
-effect.size.total$yi<-as.numeric(effect.size.total$yi)
-fig4<-orchaRd::orchard_plot(res, xlab = "Hedges´g",
-                            angle = 45, transfm = "none", alpha = 0.5, k=F, g=F,branch.size=10,trunk.size = 11)+
-  theme(legend.title = element_text(size =13),
-        legend.text = element_text(size = 13),
-        text=element_text(size=16),
-        axis.text.y = element_text(size =16),
-        axis.text.x=element_text(size=18),
-        axis.title=element_text(size=18))+
- scale_fill_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2"))+
-  scale_color_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2"))+
-  scale_y_continuous(limits = c(-8.8,5))+
-  annotate(geom = "text", x = 3.2, y = -6, 
-           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[3,3], 3), " to ", round(res$mod_table[3,4], 3))))+
-  annotate(geom = "text", x = 2.2, y = -6, 
-           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[2,3], 3), " to ", round(res$mod_table[2,4], 3))))+
-  annotate(geom = "text", x = 1.2, y = -6, 
-           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[1,3], 3), " to ", round(res$mod_table[1,4], 3))))+
-
- anno.1+anno.2+anno.3
-
-###figure4
-figure4<-plot_grid(fig4, plot.comp,labels=c("A","B"),label_size = 18, hjust=-4)
-ggsave(figure4, filename="RData/figures/Figure4.png",
-       width = 17, height = 6)
-
-
+####OVERALL EFFECT PLOT
 resnul <- orchaRd::mod_results(m3.reml, group="Title")
 
 k <- dim(effect.size.total)[1]
@@ -493,9 +395,12 @@ fig3a<-orchaRd::orchard_plot(resnul, xlab = "Hedges´g",
            color = "black", size = 5.5, label=TeX(paste0("95% CI = ", round(resnul$mod_table[1,3], 3), " to ", round(resnul$mod_table[1,4], 3))))+
   anno
 
-###crops
+###CROPS AND WILD PLANTS
+# We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
+# We fit the model without intercept to get estimated effect (slope) for each level of a categorical moderator
 model<- rma.mv(yi,vi,mods=~Cultivo-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="ML")
 anova(model,m3)
+# We fit the model with REML to get estimates
 model.reml<- rma.mv(yi,vi,mods=~Cultivo-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="REML")
 summary(model.reml)
 # We calculate marginal R^2 of model with moderator
@@ -561,40 +466,98 @@ fig3<-plot_grid(fig3a,fig3b,labels=c("A","B"), label_size = 14, hjust=-4)
 ggsave(fig3, filename="RData/figures/Figure3.png",
        width = 12, height = 4)
 
-ggsave(fig1, filename="RData/figures/ES.Repr.meas.1.png",
-       width = 8.2, height = 6)
+###ORCHARD PLOT FOR MAIN REPRODUCTIVE SUCCESS MEASURES
+# We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
+# We fit the model without intercept to get estimated effect (slope) for each level of a categorical moderator
+m3<- rma.mv(yi,vi, random=  list(~ 1 | Year, ~ 1 | Title), data=effect.size.total,method="ML")
+rep.su <- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="ML")
+anova(rep.su, m3)
+# We fit the model with REML to get estimates
+rep.reml <- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="REML")
+summary(rep.reml)
+# We calculate marginal R^2 of model with moderator
+r2_ml(rep.reml)
 
-ggsave(fig2, filename="RData/figures/ES.global.1.png",
-       width = 9, height = 5)
+# We now fit the same model with the intercept to calculate the heterogeneity explained by the levels of the moderator
+rep.reml.intercept <- rma.mv(yi,vi,mods=~Reproductive.succes.measure,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="REML")
+summary(rep.reml.intercept)
 
-top<-plot_grid(fig2, labels=c("A"), label_size = 14)
-bottom<-plot_grid(fig1,plot1, labels=c("B","C"), label_size = 14, align = "w")
+#table
+tabla.measures <- flextable::flextable(mod_results(rep.reml, group = "Title", mod = "Reproductive.succes.measure", 
+                                                   at = list(Reproductive.succes.measure = c("fruit set", "seed set", "fruit weight")), subset = TRUE)$mod_table)
 
-figure2<-plot_grid(top, bottom, ncol=1,
-                   scale = c(0.7,1,1))
+tabla.measures <- flextable::color(tabla.measures, part = "footer", color = "#666666")
+tabla.measures<- flextable::set_caption(tabla.measures, caption = "Effect of pollinator diversity loss")
+tabla.measures
 
-figure.3<-plot_grid(fig1,plot1, ncol=2,labels=c("A","B"),label_size = 14,
-                    hjust = -5,scale = c(1,1))
-          
 
-ggsave(figure.3, filename="RData/figures/figure.3.png",
-       width = 16, height = 6)
+res <- orchaRd::mod_results(rep.reml, mod = "Reproductive.succes.measure", group = "Title",
+                            at = list(Reproductive.succes.measure = c("fruit set", "seed set", "fruit weight")), subset = TRUE)
 
-fig.presub.top<-plot_grid(map, labels=c("A"), label_size = 14,  hjust = -8)
-bottom.presub<-plot_grid(fig2,plot1, labels=c("B","C"), label_size = 14, align = "w",  hjust = -4)
-figure.presub<-plot_grid(fig.presub.top, bottom.presub, ncol=1,
-                   scale = c(1,1,1))
-ggsave(figure.presub, filename="RData/figures/figure.presub.png",
-       width = 15, height = 11)
+pred.m0.fw<- effect.size.total%>%
+  filter(Reproductive.succes.measure=="fruit weight")
+k.1 <- dim(pred.m0.fw)[1]
+stdy.1 <- pred.m0.fw %>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 3.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
 
-##fugure3
-fig.3<-plot_grid(fig1, labels=c("A"), label_size = 14,  hjust = -5)
-bottom.3<-plot_grid(plot.comp,plot.fwe, labels=c("B","C"),label_size = 14,  hjust = -4)
-figure.3<-plot_grid(fig.3, bottom.3, ncol=1,
-                         scale = c(0.7,1,1))
-ggsave(figure.3, filename="RData/figures/figure.3.png",
-       width = 15, height = 12)
+pred.m0.ss<- effect.size.total%>%
+  filter(Reproductive.succes.measure=="seed set")
+k.2<- dim(pred.m0.ss)[1]
+stdy.2 <- pred.m0.ss %>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
 
+pred.m0.fs<- effect.size.total%>%
+  filter(Reproductive.succes.measure=="fruit set")
+k.3 <- dim(pred.m0.fs)[1]
+stdy.3 <- pred.m0.fs %>% summarise(stdy = length(unique(Title)))
+anno.3 <- annotate("text", x = 1.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.3, " (", stdy.3, ")")))
+
+#pred.m0.fy<- effect.size.total%>%
+#filter(Reproductive.succes.measure=="yield")
+#k.4 <- dim(pred.m0.fy)[1]
+#stdy.4 <- pred.m0.fy %>% summarise(stdy = length(unique(Title)))
+#anno.4 <- annotate("text", x = 4.2, y = 2.2, size=5.5, label = TeX(paste0("\\textit{k} = ", k.4, " (", stdy.4, ")")))
+
+effect.size.total$yi<-as.numeric(effect.size.total$yi)
+fig4<-orchaRd::orchard_plot(res, xlab = "Hedges´g",
+                            angle = 45, transfm = "none", alpha = 0.5, k=F, g=F,branch.size=10,trunk.size = 11)+
+  theme(legend.title = element_text(size =13),
+        legend.text = element_text(size = 13),
+        text=element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.text.x=element_text(size=18),
+        axis.title=element_text(size=18))+
+  scale_fill_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2"))+
+  scale_color_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2"))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  annotate(geom = "text", x = 3.2, y = -6, 
+           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[3,3], 3), " to ", round(res$mod_table[3,4], 3))))+
+  annotate(geom = "text", x = 2.2, y = -6, 
+           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[2,3], 3), " to ", round(res$mod_table[2,4], 3))))+
+  annotate(geom = "text", x = 1.2, y = -6, 
+           color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res$mod_table[1,3], 3), " to ", round(res$mod_table[1,4], 3))))+
+  
+  anno.1+anno.2+anno.3
+
+###figure4
+figure4<-plot_grid(fig4, plot.comp,labels=c("A","B"),label_size = 18, hjust=-4)
+ggsave(figure4, filename="RData/figures/Figure4.png",
+       width = 17, height = 6)
+
+##Fruit weight info:
+frutos<-effect.size.total%>%
+  filter(Reproductive.succes.measure %in% c("fruit set","fruit weight"))
+
+f <-frutos%>%
+  group_by(Title, Plant.species)%>%
+  mutate(medidas.repro= n_distinct(Reproductive.succes.measure))
+
+datos.fw.fs <- f%>%
+  select(Title,medidas.repro, Reproductive.succes.measure, yi, Plant.species)%>%
+  filter(medidas.repro=="2")%>%
+  group_by(Title, Plant.species, Reproductive.succes.measure)%>%
+  summarise(mean=mean(yi))
+####
 
 ###Conditioned orchard plot diurnal or nocturnal
 d.n.orchard<-effect.size.total[!is.na(effect.size.total$Diurn_Noctur), ]
@@ -843,25 +806,13 @@ plot.vi<-ggdraw() +
 ggsave(plot.vi, filename="RData/figures/ES.vi.2.png",
        width = 8.5, height = 6)
 
-##cowplot dn,mw,vi con plant compatibility que ya esta cargado
+##cowplot dn,mw,vi 
 fig.5<-plot_grid(plot.dn, labels=c("A"), label_size = 20,  hjust = -5)
 bottom.5<-plot_grid(plot.vi,plot.mw, labels=c("B","C"),label_size = 20,  hjust = -4)
 figure.5<-plot_grid(fig.5, bottom.5, ncol=1,
                     scale = c(0.8,1,1))
 ggsave(figure.5, filename="RData/figures/figure.5.png",
        width = 19, height = 13)
-
-
-library(ggpubr)
-fig3<-ggarrange(plot.vi,plot.dn,plot.mw,
-          labels = c("A", "B", "C"), align = "hv",
-          ncol = 2, nrow = 2, hjust = -6)
-
-ggsave(fig3, filename="RData/figures/fig3.png",
-       width = 22, height = 12)
-
-
-
 
 ####LANDSCAPE
 ##as there are some NAs:
@@ -1032,68 +983,8 @@ plot.biome<-orchaRd::orchard_plot(HetModel.1, xlab = "Hedges´g", alpha=0.65,ang
 ggsave(plot.biome, filename="RData/figures/ES.biome.1.png",
        width = 7.5, height = 8)
 
-##biome for vertebrates
-vertebrate<-effect.size.total%>%
-  filter(Vert_Invert=="Vertebrate")
-biome.v <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
-                data=vertebrate, method="ML")
-b.v.reml <- rma.mv(yi, vi, mods = ~ Biomes+Plant.species.family-1,random= list(~ 1 | Year, ~ 1 | Title),
-                 data=vertebrate, method="REML")
-summary(b.v.reml)
-b.v.reml.intercept <- rma.mv(yi, vi, mods = ~ Biomes,random= list(~ 1 | Year, ~ 1 | Title),
-                   data=vertebrate, method="REML")
-summary(b.v.reml.intercept)
-
-
-unique(vertebrate$Plant.species.family)
-##creandp paletas de colores
+##plant fams studies for nocturnal and diurnal
 library(Polychrome)
-n<-35
-qual_cols<-brewer.pal.info[brewer.pal.info$category=="qual",]
-col_vector<- unlist(mapply(brewer.pal, qual_cols$maxcolors, rownames(qual_cols)))
-pie(rep(1,n), col=sample(col_vector,n))
-colse<-sample(col_vector,n)
-
-color<- grDevices::colors()[grep("gr(a|e)y", grDevices::colors(),invert=TRUE)]
-set.seed(26934)
-cols<- sample(color,n)
-pie(rep(1,n),col=sample(color,n))
-
-set.seed(935234)
-P35 <- createPalette(35, c("#E64B35B2","#4DBBD5B2", "#6A6599FF", "#FFB84D","#3A6589","#9B5672","#DB735C"), range = c(30, 180), M=1000)
-swatch(P35)
-names(P35) <- NULL
-set.seed(567629)
-P41 <- createPalette(41, c("#5A5156", "#E4E1E3", "#F6222E"))
-swatch(P41)
-names(P41) <- NULL
-
-HetModel.v.biome <- orchaRd::mod_results(b.v.reml, mod = "Biomes",
-                                   group = "Plant.species.family",subset = TRUE,  
-                                   weights = "prop")
-plot.biome<-orchaRd::orchard_plot(HetModel.v.biome, xlab = "Hedges´g",group="Plant.species.family", colour = TRUE, alpha=0.65,angle = 45, g = FALSE, k=F, branch.size=1.5,trunk.size = 4.5,legend.pos = "top.left")+
-                                   theme(legend.direction = "vertical")+
-  theme(legend.title = element_text(size =11),
-        legend.text = element_text(size = 11),
-        text=element_text(size=10),
-        axis.text.y = element_text(size =10),
-        plot.title = element_text(lineheight=.8),
-        axis.text.x=element_text(size=15),
-        axis.title=element_text(size=15))+
-  scale_y_continuous(limits = c(-8.8,5))+
-  ggtitle("Effect of losing vertebrate pollinators on plant reproductive success")+
-  scale_fill_manual(values=P35)+
-  scale_color_manual(values=P35)
-
-
-col<-palette36.colors(n=35)
-  
-  
-
-ggsave(plot.biome, filename="RData/figures/ES.v.biome.png",
-       width = 6, height = 4)
-
-##familias estudiadas con noct y diurnos
 set.seed(567629)
 P69 <- createPalette(68, c("#5A5156", "#E4E1E3", "#F6222E"))
 swatch(P69)
@@ -1177,7 +1068,7 @@ scale_color_manual(values=c("#654226" ,"#DEDEE0" ,"#CB2E58" ,"#D6ED5C"
 ggsave(plot.v.plant, filename="RData/figures/ES.famplantas.dn.png",
        width = 9, height = 6)
 
-##familias de plantas estudiadas vert/invert
+##fams studied for vert/invert
 v.i.orchard<-datos[!is.na(datos$Vert_Invert), ]
 v.i.orchard
 table(v.i.orchard$Vert_Invert)
@@ -1251,7 +1142,7 @@ plot.vi.plant<-orchaRd::orchard_plot(HetModel.vi.plant, xlab = "Hedges´g",group
 ggsave(plot.vi.plant, filename="RData/figures/ES.famplantas.vi.png",
        width = 9, height = 6)
 
-##managed wild fam de plantas
+##plant fams studied for managed wild pollinators
 m.w.orchard<-datos[!is.na(datos$Managed_Wild), ]
 unique(m.w.orchard$color)
 unique(m.w.orchard$Plant.species.family)
@@ -1334,12 +1225,13 @@ unique(m.w.orchard$Plant.species.family)
 ggsave(plot.mw.plant, filename="RData/figures/ES.famplantas.mw.png",
        width = 9, height = 6)
 
+##supplementary figure
 fig.sup<- plot_grid(plot.v.plant,plot.vi.plant,plot.mw.plant, labels=c("A","B","C"),label_size = 20,  hjust = -1)
 
 ggsave(fig.sup, filename="RData/figures/fig.sup.png",
        width = 11, height = 8)
 
-###modelo familia plantas
+###model for plant families
 m3<- rma.mv(yi,vi, random=  list(~ 1 | Year, ~ 1 | Title), data=effect.size.total,method="ML")
 rep.fam <- rma.mv(yi,vi,mods=~Plant.species.family-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="ML")
 anova(rep.fam, m3)
@@ -1356,10 +1248,8 @@ box<-res_fam$mod_table
 box%>%arrange(estimate)
 box<-box%>%
   filter(!str_detect(name, ","))
-
-
   
-##forest plot families
+##forest plot plant families for supl. material
 figu2 <- ggplot (box, aes (y=name))+
   theme_classic()+
     geom_point(aes(x=estimate),  size=3)+
@@ -1374,7 +1264,7 @@ ggsave(figu2,filename="RData/figures/families.png",
        width = 5.5, height = 12)
   
 
-###TIPO DE ESTUDIO
+###study type orchard plot
 mesoc<- effect.size.total%>%
   mutate(Obs.Exp = case_when(
     Landscape== "Experimental" ~ "Mesocosmos",
