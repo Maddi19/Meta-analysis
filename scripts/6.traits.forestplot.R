@@ -4,7 +4,7 @@ pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 pacman::p_load(tidyverse,rtry,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
                ggmap,mapproj,glmulti,MuMIn, RColorBrewer,ggsci)
 #######
-tbl.com<- read.csv("data\\4.complete_table.csv")
+tbl.com<- read.csv("data\\4.complete_table.nw.csv")
 ##delete data without effect size (there is one without country, this is removed from the map)
 ###remove also observations on abundance and visitation rates
 tbl.com<-tbl.com[!is.na(tbl.com$yi), ]
@@ -12,7 +12,7 @@ unique(tbl.com$Pollinator.variable.measure)
 tbl.com<-tbl.com%>%
   filter(!str_detect(Pollinator.variable.measure, "abundance")) %>%
   filter(!str_detect(Pollinator.variable.measure, "visitation"))
-tbl.com<-tbl.com[!is.na(effect.size.total$vi), ]
+tbl.com<-tbl.com[!is.na(tbl.com$vi), ]
 
 ###FILTER FOR INFORMATION OF COMPATIBILITIES
 comp<- tbl.com %>%
@@ -21,7 +21,9 @@ comp<- tbl.com %>%
 c <-comp%>%
   group_by(IMPUTED_Compatibility,Plant.species.family)%>%
   summarise(n=n())
-
+unique(comp$IMPUTED_Compatibility)
+comp$IMPUTED_Compatibility <- recode(comp$IMPUTED_Compatibility,
+                                     "± self-compatibel genus"="partially_self_compatible")
 ###MODELS
 m0<- rma.mv(yi,vi,random=list(~ 1 | Year, ~ 1 | Title), data=comp, method="ML")
 m0.comp<- rma.mv(yi,vi,mods=~IMPUTED_Compatibility-1, random=list(~ 1 | Year, ~ 1 | Title), data=comp, method="ML")
@@ -74,7 +76,7 @@ anno.1+anno.2+anno.3+
   
 
 plot.comp
-ggsave(plot.comp, filename="RData/figures/comp.png",width = 9, height = 6)    
+ggsave(plot.comp, filename="Figs/P.comp.png",width = 9, height = 6)    
 
 ###ORCHARD PLOT FOR SELF COMPATIBLE PLANT SPECIES FOR SUPPL MATERIAL:
 ###seed set and fruit weight are more affected in compatible plants than fruit set.                                                                                           
@@ -129,5 +131,5 @@ plot.fwe<-orchaRd::orchard_plot(res.fwe, xlab = "Hedges´g", angle = 45, g = FAL
   annotate(geom = "text", x = 1.2, y = -5.25, 
            color = "black", size = 5, label=TeX(paste0("95% CI = ", round(res.fwe$mod_table[1,3], 3), " to ", round(res.fwe$mod_table[1,4], 3))))
 
-ggsave(plot.fwe, filename="RData/figures/compatiblesp.png",width = 9, height = 6)    
+ggsave(plot.fwe, filename="Figs/S8compatiblesp.png",width = 9, height = 6)    
 

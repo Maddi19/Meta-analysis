@@ -5,7 +5,7 @@ pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 pacman::p_load(tidyverse,rJava, dplyr,metafor,esc,cowplot,orchaRd,ggbeeswarm,tidyr,ggthemes,sp,broom,lemon,MuMIn,glmulti,PerformanceAnalytics,GGally,gt,geodata,
                ggmap,mapproj,glmulti,MuMIn)
 
-data <- read.csv("data/2.clean_data.csv")
+data <- read.csv("data/2.clean_data_nw.csv")
 
 unique(data$Higher_diversity_guilds)
 table(data$Higher_diversity_guilds)
@@ -19,33 +19,30 @@ data$Country <- recode(data$Country, "Camada"="Canada",
 ##convert to numeric all values
 data$Value<-as.numeric(data$Value)
 data$N<-as.numeric(data$N)
+table(data$N)
 data$valueC<-as.numeric(data$valueC)
 data$valueT<-as.numeric(data$valueT)
 data$seC<-as.numeric(data$seC)
 data$seT<-as.numeric(data$seT)
+data$N.treat<-as.numeric(data$N.treat)
+
 
 ##1. data that compares trat with control:
 trat <-data%>%
   filter(!is.na(valueC)& !is.na(valueT))
+trat.0 <- trat %>% filter((N.treat == 0))
+trat<-trat %>% 
+  filter( !(X %in% c(505,516)))
+          
+unique(trat$Title) #143 studies
 
-unique(trat$Title) #142 studies
 
-## effect size log response ratio
-log(trat$valueC)-log(trat$valueT)
-##positive is that it is higher in C than in T.
-
-trat$logRR_manual <- log(trat$valueC)-log(trat$valueT)
-trat %>%
-  filter(logRR_manual<Inf)%>%
-  summarise(mean_imp=mean(logRR_manual))
-
-(exp(0.526)-1)*100 ## by what percentage it increases, it increases by 69.2% 
-#only taking into account the data comparing T to C
 
 ##### EFFECT SIZE IN METAFOR AND ESC
 #SD calculation
 trat$SD_C <- trat$seC*sqrt(trat$N.control)
 trat$SD_T <- trat$seT*sqrt(trat$N.treat)
+
 
 ##CV calculation
 trat$cv_c <- trat$SD_C/trat$valueC
@@ -55,26 +52,26 @@ trat$cv_t <- trat$SD_T/trat$valueT
 trat%>%
   filter(!is.na(cv_c)&!is.na(cv_t))%>%
   summarise(median(cv_c))
-##0.383
+##0.391
 
 trat%>%
   filter(!is.na(cv_c)&!is.na(cv_t))%>%
   summarise(median(cv_t))
-##0.467
+##0.468
 
 ###Now we can calculate sd for those without data
 newtrat<- trat%>% mutate( 
-  SD_C = ifelse(is.na(SD_C), 0.383*valueC, SD_C),
-  SD_T =  ifelse(is.na(SD_T), 0.467*valueT,SD_T),
+  SD_C = ifelse(is.na(SD_C), 0.391*valueC, SD_C),
+  SD_T =  ifelse(is.na(SD_T), 0.468*valueT,SD_T),
   N=ifelse(is.na(N), N.control+N.treat, N),
   N.treat=ifelse(is.na(N.treat), N/2, N.treat),
   N.control=ifelse(is.na(N.control), N/2, N.control))
-trat_es<-newtrat%>%
-  filter(logRR_manual<Inf)
+
+
 
 ### Control and Trat
 trat_es<-escalc(m1i=valueC,m2i=valueT,sd1i=SD_C,sd2i=SD_T,
-                n1i=N.control,n2i=N.treat,data = trat_es,measure = "SMD",
+                n1i=N.control,n2i=N.treat,data = newtrat,measure = "SMD",
                 slab=Title)
 
 
@@ -83,10 +80,7 @@ trat_es<-escalc(m1i=valueC,m2i=valueT,sd1i=SD_C,sd2i=SD_T,
 data.t <-data%>%
   filter(Measure.used=="t")
 
-library(esc)
-library(metafor)
-effect_sizes.t <- esc_t(t = data.t$Value, 
-                        totaln=data.t$N, es.type = "g")
+effect_sizes.t<- effect_sizes(data.t, t = Value, totaln = N, fun = "esc_t", es.type = c("g"))
 
 effect_sizes.t2<-as.data.frame(effect_sizes.t)
 
@@ -104,14 +98,20 @@ effect_sizes.t2<- effect_sizes.t2 %>%
 
 ##Chi square
 data.x2 <-data%>%
-  filter( Measure.used=="X2")
+  filter( Measure.used=="X2",
+          !is.na(Measure.used)&!is.na(N))
 
-effect.size_x2 <-esc_chisq(chisq=data.x2$Value,totaln=data.x2$N,es.type="g")
+effect.size_x2<- effect_sizes(data.x2, chisq =Value, totaln = N, fun = "esc_chisq", es.type = "g")
+
 effect_sizes.x2<-as.data.frame(effect.size_x2)
 effect_sizes.x2 <- effect_sizes.x2 %>%
   rename("yi"="es",
          "vi"="var")
-effect_sizes.x2 <-cbind(data.x2, effect_sizes.x2)
+
+data.x2 <- data.x2%>%
+  filter(!(row_number() %in% c(21, 54)))
+
+effect_sizes.x2 <-cbind(data.x2,effect_sizes.x2)
 
 effect_sizes.x2<- effect_sizes.x2 %>%
   select(ACC,Author,Title,Year,Biome,Landscape,Lower_diversity_guild,Higher_diversity_guilds,
@@ -124,7 +124,9 @@ effect.size.total <- bind_rows(effect_sizes.t2,effect_sizes.x2)
 data.r <-data%>%
   filter( Measure.used=="r")
 
-effect.size_r<- esc_rpb(r = data.r$Value, totaln=data.r$N, es.type = "g")
+
+effect.size_r<- effect_sizes(data.r, r =Value, totaln = N, fun = "esc_rpb", es.type = "g")
+
 effect_sizes.r<-as.data.frame(effect.size_r)
 effect_sizes.r <- effect_sizes.r%>%
   rename("yi"="es",
@@ -143,7 +145,8 @@ effect.size.total <- bind_rows(effect_sizes.t2,effect_sizes.x2, effect_sizes.r)
 data.f <-data%>%
   filter(Measure.used=="F")
 
-effect.size_f <-esc_f(f=data.f$Value, totaln = data.f$N, es.type = "g")
+
+effect.size_f<- effect_sizes(data.f, f =Value, totaln = N, fun = "esc_f", es.type = "g")
 effect_sizes.f<-as.data.frame(effect.size_f)
 effect_sizes.f <- effect_sizes.f%>%
   rename("yi"="es",
@@ -226,8 +229,34 @@ repr.success<- repr.success %>%
                                   grepl("sp",Higher_diversity_guilds)~"Invertebrate",
                                   grepl("open.allvisitors", Lower_diversity_guild) ~"Invertebrate",
                                   grepl("all",Lower_diversity_guild)~"Invertebrate",
-                                  TRUE ~"NA"))
+                                  grepl("all insect visitors",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("honeybees",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("solitary bees, bumblebees, honeybees",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("Bees,flies and ants",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("non-apis bees",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("bees, hoverflies and butterflies",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("halictic bees + orchid bee",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("syrphid flies",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("Native bee",Higher_diversity_guilds)~"Invertebrate",
+                                  grepl("meliponina bees",Higher_diversity_guilds)~"Invertebrate",
+                                 TRUE ~"NA"))
 table(repr.success$`Vert_Invert`)
+
+data$Higher_diversity_guilds<- recode(data$Higher_diversity_guilds,
+                                      "all insect visitors"="all visitors",
+                                      "honeybees"="Honeybee",
+                                      "fly species"="flying pollinators",
+                                      "solitary bees, bumblebees, honeybees"="all visitors",
+                                      "Bees,flies and ants"="all visitors",
+                                      "non-apis bees"="bees",
+                                      "bees, hoverflies and butterflies"="all visitors",
+                                      "halictic bees + orchid bee"="sp2",
+                                      "syrphid flies"="hoverflies",
+                                      "Native bee"="wild bees",
+                                      "meliponina bees"="wild bees"
+                                      
+)
+
 
 ##nocturnal or diurnal
 repr.success<- repr.success %>%  
@@ -274,4 +303,4 @@ table(repr.success$Biomes)
 repr.success$yi <- -1 * repr.success$yi
 
 ##save clean data with effect sizes
-write.csv(repr.success,file="data/3.effectsizes_clean.csv")
+write.csv(repr.success,file="data/3.effectsizes_clean_nw.csv")

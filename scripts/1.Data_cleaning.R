@@ -4,7 +4,7 @@ rm(list = ls(all.names = TRUE))
 pacman::p_unload(pacman::p_loaded(), character.only = TRUE) 
 pacman::p_load(dplyr, tidyverse, tidyr, readxl,readr, metafor) 
 
-data <- read_excel("data/1.data_table.xlsx")
+data <- read_excel("data/1.data_table_Vert.xlsx")
 
 unique(data$Landscape)
 data$Landscape <- recode(data$Landscape, "beech forest"= "Forest",
@@ -110,7 +110,6 @@ data$Lower_diversity_guild<- recode(data$Lower_diversity_guild,
                                       "Nocturnal vertebrates excluded"= "Vertebrate Nocturnal flying/no-flying exclusion",
                                       "diurnal visitors"  ="Nocturnal exclusion",
                                       "nocturnal visitors"="Diurnal exclusion",
-                                      "Crepuscular pollinators"="Diurnal exclusion",
                                       "Hummingbirds excluded"="Vertebrate Diurnal flying exclusion",
                                       "moths"="Invertebrate Diurnal flying exclusion",
                                       "diurnal insects (birds excluded)"= "Vertebrate Diurnal flying exclusion",
@@ -178,7 +177,7 @@ table(data$Lower_diversity_guild)
 
 unique(data$Higher_diversity_guilds)
 table(data$Higher_diversity_guilds)
-data$Higher_diversity_guilds<- recode(data$Higher_diversity_guilds,
+#data$Higher_diversity_guilds<- recode(data$Higher_diversity_guilds,
                                       "all insect visitors"="all visitors",
                                       "honeybees"="Honeybee",
                                       "fly species"="flying pollinators",
@@ -328,9 +327,9 @@ data<- data%>%
     TRUE~`Plant species family`))
 
 unique(data$`Plant species`)
-unique(datos$`Plant species family`)
+unique(data$`Plant species family`)
 
-write.csv(datos,"data\\clean_data.csv" )
+write.csv(data,"data\\clean_data_nw.csv" )
 
 ##info plant species, families and genus studied:
 #info_sp <- datos %>%

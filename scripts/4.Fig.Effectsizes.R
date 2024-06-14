@@ -6,7 +6,7 @@ pacman::p_load(tidyverse,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,tidyr,g
                ggmap,mapproj,glmulti,MuMIn, devtools)
 devtools::install_github("daniel1noble/orchaRd", force = TRUE)
 library(orchaRd)
-repr.success <- read.csv("data/3.effectsizes_clean.csv")
+repr.success <- read.csv("data/3.effectsizes_clean_nw.csv")
 
 ##delete data without effect size (there is one without country, this is removed from the map)
 ###remove also observations on abundance and visitation rates
@@ -16,14 +16,18 @@ effect.size.total<-effect.size.total%>%
   filter(!str_detect(Pollinator.variable.measure, "abundance")) %>%
   filter(!str_detect(Pollinator.variable.measure, "visitation"))
 effect.size.total<-effect.size.total[!is.na(effect.size.total$vi), ]
+excel_data<-effect.size.total%>%
+  group_by(Author,Year,Title)%>%
+  summarise(N_observations=n())
+writexl::write_xlsx(excel_data, "data/papers.xlsx")
 #effect.size.total <-effect.size.total%>%
- #filter(!is.na(Country))
+# filter(!is.na(Country))
 
 effect.size.total$Plant.species<- recode(effect.size.total$Plant.species,  
                                "Brassica oleracea var.capita"="Brassica oleracea var.capitata")
-unique(effect.size.total$Plant.species)##220 sp, removing three about community effect and same sp red and white.
-unique(effect.size.total$Plant.species.family)#65 fam
-unique(effect.size.total$Title)#200 estudios,751 obs
+unique(effect.size.total$Plant.species)##224 sp, removing three about community effect and same sp red and white.
+unique(effect.size.total$Plant.species.family)#66 fam
+unique(effect.size.total$Title)#207 estudios,780 obs
 
 ##INFO THAT WE HAVE
 effect.size.total$Country <- recode(effect.size.total$Country, "Perú"="Peru",
@@ -45,6 +49,8 @@ studies_country<- studies_country%>%
              total.obs=sum(obs.country),
            percentage.est=(studies_country/total.studies)*100,
            percentage.obs=(obs.country/total.obs)*100)
+##
+
 
 ##lollipop chard
 studies<- studies_country%>%
@@ -107,7 +113,7 @@ p.c<- studies %>%
   scale_fill_manual(values = c("#E64B35B2","#358DB9"),labels = c("% Number of studies", "% Number of observations"))
 p.c 
 
-##most studies families
+##most studied families
 fams.studied<- effect.size.total%>%
   group_by(Plant.species.family)%>%
   summarise(n.family=n())
@@ -142,7 +148,16 @@ library(colorspace)
 library(RColorBrewer)
 library(ggpubr)
 
-colors<-get_palette("uchicago",16)
+colors<-get_palette("npg",16)
+format.donus<-list(theme(legend.text = element_text(size=9),
+                           legend.position = "bottom",
+                           legend.title = element_blank(),
+                           legend.key.size = unit(0.2, "cm"),
+                           plot.title = element_text(hjust=0.5)),
+                   scale_fill_manual(values=colors),
+                   theme_void(),
+                   xlim(c(.2,2.5)))
+                     
 
 fams.studied$Plant.species.family<- factor(fams.studied$Plant.species.family, levels=rev(as.character(fams.studied$Plant.species.family)))
 
@@ -151,17 +166,10 @@ donus<- ggplot (fams.studied, aes(y=percentage.fam,x=2, fill=Plant.species.famil
   coord_polar(theta="y", start=200)+
   geom_text(aes(label=percentage),position=position_stack(vjust=0.5),
             col="white",size=2.7,fontface="bold")+
-  xlim(c(.2,2.5))+
-  theme_void()+
-  scale_fill_manual(values=colors)+
-  theme(legend.text = element_text(size=9),
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        legend.key.size = unit(0.2, "cm"),
-        plot.title = element_text(hjust=0.5))+
   ggtitle("Plant families (% obs)")+
   guides(fill=guide_legend(nrow =4, override.aes = list(size=5)),
-         color=guide_legend(override.aes = list(size=4)))
+         color=guide_legend(override.aes = list(size=4)))+
+  format.donus
    
 donus
 
@@ -192,26 +200,28 @@ biomes.est$percentage.b<- as.numeric(biomes.est$percentage.b)
 biomes.est<-biomes.est%>%
   mutate(Biome=factor(Biome, levels=unique(Biome)))
 
+format.bar<-list(scale_color_manual(values=c("#358DB9")),
+             scale_fill_manual(values=c("#358DB9")),
+             theme_classic(),
+             theme(legend.title = element_blank(),
+                   axis.title.y = element_blank(),
+                   legend.text = element_blank(),
+                   legend.position = "none",
+                   plot.title = element_text(hjust=0.5)),
+             scale_x_continuous(expand = c(0,0)),
+             xlab("Percentage (obs)"))
+
 p.b<- biomes.est %>% 
   arrange(c(percentage.b)) %>% 
   mutate(Biome=forcats::fct_inorder(Biome))%>%
   ggplot(aes(x=percentage.b,y=Biome, fill="#358DB9"))+
   geom_bar(aes(x=percentage.b),stat="identity")+
-  theme_classic() +
-  xlim(c(0,30))+
-  scale_x_continuous(expand = c(0,0)) +
-  xlab("Percentage (obs)")+
-  theme(legend.title = element_blank(),
-        axis.title.y = element_blank(),
-        legend.text = element_blank(),
-        legend.position = "none",
-        plot.title = element_text(hjust=0.5)) +
+  xlim(c(0,30)) +
   ggtitle("Biomes")+
-  scale_color_manual(values = c("#358DB9"))+
-  scale_fill_manual(values = c("#358DB9"))
+  format.bar
 p.b
 
-##most studies habitats
+##most studied habitats
 land <- effect.size.total%>%
   filter(!is.na(Landscape)& !Landscape %in% c("Experimental"))%>%
   group_by(Landscape)%>%
@@ -231,19 +241,10 @@ p.l<- land.est %>%
   mutate(Landscape=forcats::fct_inorder(Landscape))%>%
   ggplot(aes(x=percentage.l,y=Landscape, fill="#358DB9"))+
   geom_bar(stat="identity")+
-  theme_classic() +
   xlim(c(0,40))+
-  scale_x_continuous(expand = c(0,0)) +
-  xlab("Percentage (obs)")+
-  theme(legend.title = element_blank(),
-        axis.title.y = element_blank(),
-        legend.text = element_blank(),
-        legend.position = "none",
-        plot.title = element_text(hjust=0.5)) +
   ggtitle("Landscapes")+
-  scale_color_manual(values = c("#358DB9"))+
-  scale_fill_manual(values = c("#358DB9"))
-p.l
+  format.bar
+  p.l
 
 ##STUDY TYPE
 mesoc<- effect.size.total%>%
@@ -271,6 +272,14 @@ study.type<-study.type%>%
   mutate(percentage=paste(percentage.type, "%",sep=""))
 
 colors<-get_palette("Dark2",3)
+format.donus<-list(theme(legend.text = element_text(size=9),
+                         legend.position = "bottom",
+                         legend.title = element_blank(),
+                         legend.key.size = unit(0.2, "cm"),
+                         plot.title = element_text(hjust=0.5)),
+                   scale_fill_manual(values=colors),
+                   theme_void(),
+                   xlim(c(.2,2.5)))
 
 study.type$Obs.Exp<- factor(study.type$Obs.Exp, levels=rev(as.character(study.type$Obs.Exp)))
 
@@ -279,17 +288,10 @@ donus.type<- ggplot (study.type, aes(y=percentage.type,x=2, fill=Obs.Exp))+
   coord_polar(theta="y", start=200)+
   geom_text(aes(label=percentage),position=position_stack(vjust=0.5),
             col="white",size=3, fontface="bold")+
-  xlim(c(.2,2.5))+
-  theme_void()+
-  scale_fill_manual(values=colors)+
-  theme(legend.text = element_text(size=9),
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        legend.key.size = unit(0.2, "cm"),
-        plot.title = element_text(hjust=0.5))+
   ggtitle("Study type (% obs)")+
-  guides(fill=guide_legend(nrow =1, override.aes = list(size=5),title.position = "top", title.hjust=0.5),
-         color=guide_legend(override.aes = list(size=4)))
+  guides(fill=guide_legend(nrow =1, override.aes = list(size=5)),
+         color=guide_legend(override.aes = list(size=4)))+
+  format.donus
 
 donus.type
 ##
@@ -334,7 +336,7 @@ donus.multi <- plot_grid(donus, donus.type, labels=c("E","F"),
 
 multipanel.fig<- plot_grid(multi,cowd,donus.multi, ncol=1,
                            rel_heights = c(5.2,3,6.5), scale=c(1,0.8,1))
-cowplot::save_plot("RData/figures/multipanelfigure.1.png", multipanel.fig, base_height = 13.2, base_width = 9)
+cowplot::save_plot("Figs/multipanelfigure.new.png", multipanel.fig, base_height = 13.2, base_width = 9)
 
 ####NULL MODELS
 m0<- rma.mv(yi,vi, random= ~1|Title, data=effect.size.total, method="ML")
@@ -347,6 +349,7 @@ m6<- rma.mv(yi,vi, random= ~1|Title/Year, data=effect.size.total,method="ML")
 m7<- rma.mv(yi,vi, random= ~1|Year/Country, data=effect.size.total,method="ML")
 m8<- rma.mv(yi,vi, random= ~1|Country/Title, data=effect.size.total,method="ML")
 m9<- rma.mv(yi,vi, random= ~1|Country/Year, data=effect.size.total,method="ML")
+
 
 AIC(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9)
 ##m3
@@ -378,22 +381,24 @@ k <- dim(effect.size.total)[1]
 stdy <- effect.size.total %>% summarise(stdy = length(unique(Title)))
 anno <- annotate("text", x = 1.2, y = 2.7, size=5.5,label = TeX(paste0("\\textit{k} = ", k, " (", stdy, ")")))
 
+format.orchard<-list(theme(legend.title = element_text(size =13),
+                           legend.text = element_text(size = 13),
+                           text=element_text(size=13),
+                           axis.text.y = element_text(size =13),
+                           plot.title = element_text(lineheight=.8),
+                           axis.text.x=element_text(size=18),
+                           axis.title=element_text(size=18)),
+                     scale_y_continuous(limits = c(-8.8,5)))
+
 fig3a<-orchaRd::orchard_plot(resnul, xlab = "Hedges´g",
                             angle = 45, transfm = "none", alpha = 0.5, k=FALSE, g=FALSE,branch.size=10,trunk.size = 11)+
-  theme(legend.title = element_text(size =13),
-        legend.text = element_text(size = 13),
-        text=element_text(size=13),
-        axis.text.y = element_text(size =13),
-        plot.title = element_text(lineheight=.8),
-        axis.text.x=element_text(size=18),
-        axis.title=element_text(size=18))+
-  scale_fill_manual("Reproductive success measure", values = c("#00A087B2"))+
-  scale_color_manual("Reproductive success measure", values = c("#00A087B2"))+
+  scale_fill_manual(values = c("#00A087B2"))+
+  scale_color_manual(values = c("#00A087B2"))+
   scale_x_discrete(labels=c("Overall"))+
-  scale_y_continuous(limits = c(-8.8,5))+
   annotate(geom = "text", x = 0.6, y = -4.4, 
            color = "black", size = 5.5, label=TeX(paste0("95% CI = ", round(resnul$mod_table[1,3], 3), " to ", round(resnul$mod_table[1,4], 3))))+
-  anno
+  anno+
+  format.orchard
 
 ###CROPS AND WILD PLANTS
 # We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
@@ -419,7 +424,6 @@ tabla.crop <- flextable::flextable(mod_results(model.reml, group = "Title", mod 
 tabla.crop <- flextable::color(tabla.crop, part = "footer", color = "#666666")
 tabla.crop<- flextable::set_caption(tabla.crop, caption = "Effect of pollinator diversity loss")
 tabla.crop
-c<-rbind(tabla.crop,tabla.measures)
 
 crop<- orchaRd::mod_results(model.reml, mod = "Cultivo",
                             group = "Title",subset = TRUE,  weights = "prop")
@@ -440,30 +444,22 @@ anno.2 <- annotate("text", x = 2.2, y = 2.7, size=5.5,label = TeX(paste0("\\text
 
 fig3b<-orchaRd::orchard_plot(crop, xlab = "Hedges´g", alpha=0.65,angle = 45, g = FALSE, k=F, branch.size=10,trunk.size = 11,
                              condition.lab = "Cultivo") +
-  theme(legend.title = element_text(size =13),
-        legend.text = element_text(size = 13),
-        text=element_text(size=15),
-        axis.text.y = element_text(size =15),
-        plot.title = element_text(lineheight=.8),
-        axis.text.x=element_text(size=18),
-        axis.title=element_text(size=18))+
-  scale_fill_manual("Biomes", values = c("#E64B35B2","#4DBBD5B2"))+
-  scale_color_manual("Biomes", values = c("#E64B35B2","#4DBBD5B2"))+
-  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual( values = c("#E64B35B2","#4DBBD5B2"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2"))+
   scale_x_discrete(labels=c("Crops","Wild Plants"))+
   annotate(geom = "text", x = 2.15, y = -5.25, 
            color = "black", size = 5, label=TeX(paste0("95% CI = ", round(crop$mod_table[2,3], 3), " to ", round(crop$mod_table[2,4], 3))))+
   annotate(geom = "text", x = 1.15, y = -5.25, 
            color = "black", size = 5, label=TeX(paste0("95% CI = ", round(crop$mod_table[1,3], 3), " to ", round(crop$mod_table[1,4], 3))))+
-  anno.1+anno.2
+  anno.1+anno.2+format.orchard
 
 fig3b
 
-ggsave(fig3b, filename="RData/figures/ES.cultivo.png",
+ggsave(fig3b, filename="Figs/crops.nw.png",
        width = 9, height = 6)
 
 fig3<-plot_grid(fig3a,fig3b,labels=c("A","B"), label_size = 14, hjust=-4)
-ggsave(fig3, filename="RData/figures/Figure3.png",
+ggsave(fig3, filename="Figs/Figure3.nw.png",
        width = 12, height = 4)
 
 ###ORCHARD PLOT FOR MAIN REPRODUCTIVE SUCCESS MEASURES
@@ -541,7 +537,7 @@ fig4<-orchaRd::orchard_plot(res, xlab = "Hedges´g",
 
 ###figure4
 figure4<-plot_grid(fig4, plot.comp,labels=c("A","B"),label_size = 18, hjust=-4)
-ggsave(figure4, filename="RData/figures/Figure4.png",
+ggsave(figure4, filename="Figs/Fig5.png",
        width = 17, height = 6)
 
 ##Fruit weight info:
@@ -563,7 +559,7 @@ datos.fw.fs <- f%>%
 d.n.orchard<-effect.size.total[!is.na(effect.size.total$Diurn_Noctur), ]
 d.n.orchard%>%
   group_by(Diurn_Noctur)%>%
-  summarise(N=n())
+  summarise(N=n_distinct(Title))
 
 m3.nd <- rma.mv(yi, vi,random= list(~ 1 | Year, ~ 1 | Title),
                data=d.n.orchard, method="ML")
@@ -631,12 +627,12 @@ install.packages("magick")
 library(magick)
 plot.dn<-ggdraw() + 
   draw_plot(plot.dn) +
-  draw_image(image=sun, x = -0.075, y =  0.31, scale = 0.07)+
-  draw_image(image=sun, x = -0.075, y =  0.03, scale = 0.07)+
-  draw_image(image=sun, x = -0.075, y =  -0.235, scale = 0.07)+
+  draw_image(image=sun, x = -0.075, y =  0.3, scale = 0.07)+
+  draw_image(image=sun, x = -0.075, y =  0.025, scale = 0.07)+
+  draw_image(image=sun, x = -0.075, y =  -0.27, scale = 0.07)+
   draw_image(image=moon, x = -0.075, y =  0.38, scale = 0.06)+
   draw_image(image=moon, x = -0.075, y =  0.1, scale = 0.06)+
-  draw_image(image=moon, x = -0.075, y =  -0.165, scale = 0.06)
+  draw_image(image=moon, x = -0.075, y =  -0.19, scale = 0.06)
     
 ggsave(plot.dn, filename="RData/figures/ES.dn.2.png",
        width = 8.5, height = 6)
@@ -779,6 +775,7 @@ k.3 <- dim(fs)[1]
 stdy.3 <- fs %>% summarise(stdy = length(unique(Title)))
 anno.3 <- annotate("text", x = 1.2, y = 2.5, size=6.5,label = TeX(paste0("\\textit{k} = ", k.3, " (", stdy.3, ")")))
 
+hb<-"images/hummingbird.png"
 
 plot.vi.1<-orchaRd::orchard_plot(HetModel.vi, xlab = "Hedges´g", alpha=0.7,angle = 45, g = FALSE, k=F, branch.size=10,trunk.size = 11,legend.pos = "top.left",
                             condition.lab = "Vert_Invert")+theme(legend.direction = "vertical")+
@@ -796,22 +793,22 @@ plot.vi.1<-orchaRd::orchard_plot(HetModel.vi, xlab = "Hedges´g", alpha=0.7,angl
 
 plot.vi<-ggdraw() + 
   draw_plot(plot.vi.1) +
-  draw_image(image=bee, x = -0.075, y =  0.29, scale = 0.07)+
-  draw_image(image=bee, x = -0.075, y =  0.01, scale = 0.07)+
-  draw_image(image=bee, x = -0.075, y =  -0.255, scale = 0.07)+
-  draw_image(image=hb, x = -0.075, y =  0.36, scale = 0.08)+
-  draw_image(image=hb, x = -0.075, y =  0.08, scale = 0.08)+
-  draw_image(image=hb, x = -0.075, y =  -0.185, scale = 0.08)
+  draw_image(image=bee, x = -0.075, y =  0.29, scale = 0.1)+
+  draw_image(image=bee, x = -0.075, y =  0.01, scale = 0.1)+
+  draw_image(image=bee, x = -0.075, y =  -0.255, scale = 0.1)+
+  draw_image(image=hb, x = -0.075, y =  0.36, scale = 0.1)+
+  draw_image(image=hb, x = -0.075, y =  0.1, scale = 0.1)+
+  draw_image(image=hb, x = -0.075, y =  -0.175, scale = 0.1)
 
 ggsave(plot.vi, filename="RData/figures/ES.vi.2.png",
        width = 8.5, height = 6)
 
 ##cowplot dn,mw,vi 
-fig.5<-plot_grid(plot.dn, labels=c("A"), label_size = 20,  hjust = -5)
-bottom.5<-plot_grid(plot.vi,plot.mw, labels=c("B","C"),label_size = 20,  hjust = -4)
-figure.5<-plot_grid(fig.5, bottom.5, ncol=1,
+fig.6<-plot_grid(plot.vi, labels=c("A"), label_size = 20,  hjust = -5)
+bottom.6<-plot_grid(plot.dn,plot.mw, labels=c("B","C"),label_size = 20,  hjust = -4)
+figure.6<-plot_grid(fig.6, bottom.6, ncol=1,
                     scale = c(0.8,1,1))
-ggsave(figure.5, filename="RData/figures/figure.5.png",
+ggsave(figure.6, filename="Figs/figure.6.png",
        width = 19, height = 13)
 
 ####LANDSCAPE
@@ -819,7 +816,7 @@ ggsave(figure.5, filename="RData/figures/figure.5.png",
 l.orchard<-effect.size.total[!is.na(effect.size.total$Landscape), ]
 table(l.orchard$Landscape)
 l.orchard<- l.orchard%>%
-  subset(!(Landscape=="Mesocosmos"))
+  subset(!(Landscape=="Experimental"))
 
 land <- rma.mv(yi, vi, mods = ~ Landscape-1,random= list(~ 1 | Year, ~ 1 | Title),
                 data=l.orchard, method="ML")
@@ -834,6 +831,8 @@ r2_ml(model.land)
 l.orchard.mang <- l.orchard%>%
   filter(Reproductive.succes.measure %in% c("fruit weight","seed set","fruit set"))%>%
   subset(!(Landscape=="Mangrove"))
+
+unique(l.orchard.mang$Landscape)
 
 model.land.rep<- rma.mv(yi,vi,mods=~Reproductive.succes.measure+Landscape-1,random= list(~ 1 | Year, ~ 1 | Title), data=l.orchard.mang, method="REML")
 
@@ -902,22 +901,21 @@ plot<-orchaRd::orchard_plot(HetModel.1, xlab = "Hedges´g", alpha=0.65,angle = 4
         axis.title=element_text(size=15))+
   scale_y_continuous(limits = c(-8.8,5))+
   scale_x_discrete(labels=c("Agricultural","Dune","Forest","Grassland","Marsh","Savannah","Shrubland","Urban"))+
-  scale_fill_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
-  scale_color_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
+  scale_fill_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C"))+
+  scale_color_manual("Reproductive success measure", values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C"))+
   anno.1+anno.2+anno.3+anno.4+anno.5+anno.6+anno.7+anno.8
 
 
-ggsave(plot, filename="RData/figures/ES.land.1.png",
+ggsave(plot, filename="Figs/habitat.S5.png",
        width = 7.5, height = 8)
 
-############Biomes#####
+############Clustered Biomes#####
 biome <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
                      data=effect.size.total, method="ML")
 anova(biome,m3)
-full.biome <- rma.mv(yi, vi, mods = ~ (Reproductive.succes.measure+Biomes)-1,random= list(~ 1 | Year, ~ 1 | Title),
-                  data=effect.size.total, method="ML")
-anova(full.biome, m3)
 
+
+##graph with clustered biomes
 b.reml <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
                      data=effect.size.total, method="REML")
 r2_ml(b.reml)
@@ -934,7 +932,7 @@ biome.reml <- rma.mv(yi, vi, mods = ~ Reproductive.succes.measure+Biomes,random=
 HetModel.1 <- orchaRd::mod_results(biome.reml, mod = "Biomes",
                                    group = "Title",subset = TRUE, by="Reproductive.succes.measure", 
                                    weights = "prop")
-library(latex2exp)
+
 fd<- b.orchard%>%
   filter(Biomes=="Deserts")
 k.1 <- dim(fd)[1]
@@ -980,33 +978,339 @@ plot.biome<-orchaRd::orchard_plot(HetModel.1, xlab = "Hedges´g", alpha=0.65,ang
   anno.1+anno.2+anno.3+anno.4+anno.5
 
 
-ggsave(plot.biome, filename="RData/figures/ES.biome.1.png",
+ggsave(plot.biome, filename="Figs/Fig4.nw.png",
        width = 7.5, height = 8)
+##biomes wilpants
+wild.plants<-effect.size.total%>%
+  filter(Cultivo=="No_crop")
+m3 <- rma.mv(yi, vi, random= list(~ 1 | Year, ~ 1 | Title),
+             data=wild.plants, method="ML")
+biome <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
+                data=wild.plants, method="ML")
+anova(biome,m3)
+wild.pl.reml <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
+                       data=wild.plants, method="REML")
+r2_ml(wild.pl.reml)
+summary(wild.pl.reml)
+HetModel.wp <- orchaRd::mod_results(wild.pl.reml, mod = "Biomes",
+                                   group = "Title",
+                                   weights = "prop")
+
+fd<- wild.plants%>%
+  filter(Biomes=="Deserts")
+k.1 <- dim(fd)[1]
+stdy.1<- fd%>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
+
+fmed<- wild.plants%>%
+  filter(Biomes=="Mediterranean")
+k.2 <- dim(fmed)[1]
+stdy.2<- fmed%>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
+
+fo<- wild.plants%>%
+  filter(Biomes=="Others")
+k.3 <- dim(fo)[1]
+stdy.3<- fd%>% summarise(stdy = length(unique(Title)))
+anno.3 <- annotate("text", x = 3.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.3, " (", stdy.3, ")")))
+
+ftem<- wild.plants%>%
+  filter(Biomes=="Temperate")
+k.4 <- dim(ftem)[1]
+stdy.4<- ftem%>% summarise(stdy = length(unique(Title)))
+anno.4 <- annotate("text", x = 4.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.4, " (", stdy.4, ")")))
+
+ftrop<- wild.plants%>%
+  filter(Biomes=="Tropical")
+k.5 <- dim(ftrop)[1]
+stdy.5<- ftrop%>% summarise(stdy = length(unique(Title)))
+anno.5 <- annotate("text", x = 5.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.5, " (", stdy.5, ")")))
+
+
+plot.wp.biome<-orchaRd::orchard_plot(HetModel.wp, xlab = "Hedges´g", alpha=0.65,angle = 45, g = FALSE, k=F, branch.size=1.5,trunk.size = 4.5,legend.pos = "top.left",
+) + theme(legend.direction = "vertical")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        axis.text.y = element_text(size =13),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
+  anno.1+anno.2+anno.3+anno.4+anno.5
+
+##biomes for vertebrate pollinators--> compare to Ratto et al 2018
+vert<-effect.size.total%>%
+  select(Title,Lower_diversity_guild,ACC, PAGE,Vert_Invert,Ratto_Vert,Diurn_Noctur,yi,vi, Biomes)
+vert<-vert%>%
+  subset(Vert_Invert=="Vertebrate" | Ratto_Vert=="vertebrate")
+vert%>%
+  group_by(Biomes)%>%
+  summarise(n=n())
+
+m3.vert.ml <- rma.mv(yi, vi, random= list(~ 1 | Year, ~ 1 | Title),
+                    data=vert, method="ML")
+b.vert.ml <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
+                      data=vert, method="ML")
+anova(b.vert.ml,m3.vert.ml)
+
+b.vert.reml <- rma.mv(yi, vi, mods = ~ Biomes-1,random= list(~ 1 | Year, ~ 1 | Title),
+                 data=vert, method="REML")
+r2_ml(b.vert.reml)
+summary(b.vert.reml)
+
+HetModel.1 <- orchaRd::mod_results(b.vert.reml, mod = "Biomes",
+                                   group = "Title",
+                                   weights = "prop")
+
+fd<- vert%>%
+  filter(Biomes=="Deserts")
+k.1 <- dim(fd)[1]
+stdy.1<- fd%>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
+
+fmed<- vert%>%
+  filter(Biomes=="Mediterranean")
+k.2 <- dim(fmed)[1]
+stdy.2<- fmed%>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
+
+fo<- vert%>%
+  filter(Biomes=="Others")
+k.3 <- dim(fo)[1]
+stdy.3<- fd%>% summarise(stdy = length(unique(Title)))
+anno.3 <- annotate("text", x = 3.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.3, " (", stdy.3, ")")))
+
+ftem<- vert%>%
+  filter(Biomes=="Temperate")
+k.4 <- dim(ftem)[1]
+stdy.4<- ftem%>% summarise(stdy = length(unique(Title)))
+anno.4 <- annotate("text", x = 4.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.4, " (", stdy.4, ")")))
+
+ftrop<- vert%>%
+  filter(Biomes=="Tropical")
+k.5 <- dim(ftrop)[1]
+stdy.5<- ftrop%>% summarise(stdy = length(unique(Title)))
+anno.5 <- annotate("text", x = 5.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.5, " (", stdy.5, ")")))
+
+
+plot.vert.biome<-orchaRd::orchard_plot(HetModel.1, xlab = "Hedges´g", alpha=0.65,angle = 45, g = FALSE, k=F, branch.size=1.5,trunk.size = 4.5,legend.pos = "top.left",
+                                  ) + theme(legend.direction = "vertical")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        axis.text.y = element_text(size =13),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2","#00A087B2","#FFB84D","#3A6589","#9B5672","#6A6599FF","#DB735C","#EFA86E"))+
+  anno.1+anno.2+anno.3+anno.4+anno.5
+
+##by far tropical and desserts most studied for vertebrate poll.
+
+ggsave(plot.vert.biome, filename="Figs/vert.biome.nw.png",
+       width = 6, height = 5)
+
+biomes<-plot_grid(plot.vert.biome, plot.wp.biome,labels=c("A","B"),label_size = 18,  hjust = -4)
+ggsave(biomes, filename="Figs/vert.wp.biome.png",
+       width = 10, height = 6)
+
+###vertebrates nocturnal or diurnal
+v<-vert%>%
+  select(Ratto_Vert, Vert_Invert, Diurn_Noctur)%>%
+  group_by(Diurn_Noctur,Ratto_Vert, Vert_Invert)%>%
+  summarise(n=n())
+
+vert.dn<-vert[!is.na(vert$Diurn_Noctur), ]
+m3.vert.ml <- rma.mv(yi, vi, random= list(~ 1 | Year, ~ 1 | Title),
+                     data=vert.dn, method="ML")
+dn.vert.ml <- rma.mv(yi, vi, mods = ~ Diurn_Noctur-1,random= list(~ 1 | Year, ~ 1 | Title),
+                       data=vert.dn, method="ML")
+anova(m3.vert.ml,dn.vert.ml)
+
+
+dn.vert.reml <- rma.mv(yi, vi, mods = ~ Diurn_Noctur-1,random= list(~ 1 | Year, ~ 1 | Title),
+                      data=vert.dn, method="REML")
+
+r2_ml(dn.vert.reml)
+summary(dn.vert.reml)
+
+HetModel.1 <- orchaRd::mod_results(dn.vert.reml, mod = "Diurn_Noctur",
+                                   group = "Title",
+                                   weights = "prop")
+fd.n<- vert%>%
+  filter(Diurn_Noctur=="Diurnal")
+k.1 <- dim(fd.n)[1]
+stdy.1<- fd.n%>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
+
+fn<- vert%>%
+  filter(Diurn_Noctur=="Nocturnal")
+k.2 <- dim(fn)[1]
+stdy.2<- fn%>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
+
+plot.vert.dn<-orchaRd::orchard_plot(HetModel.1, xlab = "Hedges´g", 
+                                    alpha=0.65,angle = 45, g = FALSE, k=F, 
+                                    branch.size=1.5,trunk.size = 7.5)+
+  theme(legend.direction = "horizontal")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        text=element_text(size=10),
+        axis.text.y = element_text(size =14),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  anno.1+anno.2
+
+ggsave(plot.vert.dn, filename="Figs/Ratto.vert_dn.png",
+       width = 7, height = 5)
+##vert/invert for nocturnal and diurnal pollinators 
+vi.dn<-d.n.orchard[!is.na(d.n.orchard$Vert_Invert), ]
+vert_invert <- data.frame(
+  Vert_Invert = unique(vi.dn$Vert_Invert),  
+  id = 1:length(unique(vi.dn$Vert_Invert))
+)
+
+color<- c("#E64B35B2","#4DBBD5B2")
+vert_invert$color <- color[vert_invert$id]
+datos <- merge(vi.dn, vert_invert, by = "Vert_Invert", all.x = TRUE)
+
+fd.n<- vi.dn%>%
+  filter(Diurn_Noctur=="Diurnal")
+k.1 <- dim(fd.n)[1]
+stdy.1<- fd.n%>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
+
+fn<- vi.dn%>%
+  filter(Diurn_Noctur=="Nocturnal")
+k.2 <- dim(fn)[1]
+stdy.2<- fn%>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
+
+vi.dn.reml <- rma.mv(yi, vi, mods = ~ Diurn_Noctur-1,random= list(~ 1 | Year, ~ 1 | Title),
+                         data=datos, method="REML")
+
+
+HetModel.vi.dn <- orchaRd::mod_results(vi.dn.reml, mod = "Diurn_Noctur",
+                                         group = "Vert_Invert",subset = TRUE,weights = "prop")
+
+plot.vi.dn<-orchaRd::orchard_plot(HetModel.vi.dn, xlab = "Hedges´g",
+                                    group="Vert_Invert", colour = TRUE, 
+                                    alpha=0.65,angle = 45, g = FALSE, k=F, 
+                                    branch.size=1.5,trunk.size = 7.5)+
+  theme(legend.direction = "horizontal")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        text=element_text(size=10),
+        axis.text.y = element_text(size =14),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  anno.1+anno.2
+
+ggsave(plot.vi.dn, filename="Figs/vert.inv_dn.png",
+       width = 7, height = 5)
+
+
+##vert/invert for nocturnal and diurnal pollinators Ratto
+d.n.orchard <- d.n.orchard %>% 
+  mutate(Vert_Invert = ifelse(Vert_Invert%in% NA, Ratto_Vert, Vert_Invert))
+
+d.n.orchard$Vert_Invert<-recode(d.n.orchard$Vert_Invert, "vertebrate"="Vertebrate",
+                                "no"="Invertebrate")
+
+d.n.orchard<-d.n.orchard[!is.na(d.n.orchard$Vert_Invert),]
+
+unique(d.n.orchard$Vert_Invert)
+
+vert_invert <- data.frame(
+  Vert_Invert = unique(d.n.orchard$Vert_Invert),  
+  id = 1:length(unique(d.n.orchard$Vert_Invert))
+)
+
+color<- c("#E64B35B2","#4DBBD5B2")
+vert_invert$color <- color[vert_invert$id]
+datos <- merge(d.n.orchard, vert_invert, by = "Vert_Invert", all.x = TRUE)
+
+
+v.ratto.reml <- rma.mv(yi, vi, mods = ~ Diurn_Noctur-1,random= list(~ 1 | Year, ~ 1 | Title),
+                         data=datos, method="REML")
+
+
+HetModel.v.ratto <- orchaRd::mod_results(v.ratto.reml, mod = "Diurn_Noctur",
+                                         group = "Vert_Invert",subset = TRUE,weights = "prop")
+
+fd.n<- d.n.orchard%>%
+  filter(Diurn_Noctur=="Diurnal")
+k.1 <- dim(fd.n)[1]
+stdy.1<- fd.n%>% summarise(stdy = length(unique(Title)))
+anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.1, " (", stdy.1, ")")))
+
+fn<- d.n.orchard%>%
+  filter(Diurn_Noctur=="Nocturnal")
+k.2 <- dim(fn)[1]
+stdy.2<- fn%>% summarise(stdy = length(unique(Title)))
+anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
+
+
+plot.v.ratto<-orchaRd::orchard_plot(HetModel.v.ratto, xlab = "Hedges´g",
+                                    group="Vert_Invert", colour = TRUE, 
+                                    alpha=0.65,angle = 45, g = FALSE, k=F, 
+                                    branch.size=1.5,trunk.size = 7.5)+
+  theme(legend.direction = "horizontal")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        text=element_text(size=10),
+        axis.text.y = element_text(size =14),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  scale_color_manual(values = c("#E64B35B2","#4DBBD5B2"))+
+  anno.1+anno.2
+
+ggsave(plot.v.ratto, filename="Figs/Ratto.vert.inv_dn.png",
+       width = 7, height = 5)
+
+fig.sup.r<- plot_grid(plot.vi.dn,plot.v.ratto, labels=c("A","B"),label_size = 20,  hjust = -1)
+
+ggsave(fig.sup.r, filename="Figs/vert.ratto.png",
+       width = 9, height = 4)
 
 ##plant fams studies for nocturnal and diurnal
 library(Polychrome)
-set.seed(567629)
-P69 <- createPalette(68, c("#5A5156", "#E4E1E3", "#F6222E"))
+set.seed(757629)
+P69 <- createPalette(69, c("#5A5156", "#E4E1E3", "#F6222E","#4DBBD5B2"))
 swatch(P69)
-names(P68) <- NULL
+names(P69) <- NULL
 
 familias <- data.frame(
   Plant.species.family = unique(effect.size.total$Plant.species.family),  
   id = 1:length(unique(effect.size.total$Plant.species.family))
 )
 
-familias$color <- P68[familias$id]
+familias$color <- P69[familias$id]
 datos <- merge(effect.size.total, familias, by = "Plant.species.family", all.x = TRUE)
 
 
 d.n.orchard<-datos[!is.na(datos$Diurn_Noctur), ]
-unique(d.n.orchard$color)
+p42<-unique(d.n.orchard$color)
 swatch(unique(d.n.orchard$color))
 unique(d.n.orchard$Plant.species.family)
 table(d.n.orchard$Diurn_Noctur)
-table<-d.n.orchard%>%
+table<-effect.size.total%>%
   group_by(Plant.species.family)%>%
-  summarise(N=n())
+  summarise(N=n_distinct(Plant.species))
 
 v.plantsp.reml <- rma.mv(yi, vi, mods = ~ Diurn_Noctur+Plant.species.family-1,random= list(~ 1 | Year, ~ 1 | Title),
                    data=d.n.orchard, method="REML")
@@ -1024,9 +1328,8 @@ anno.1 <- annotate("text", x = 1.2, y = 2.5, size=4.5,label = TeX(paste0("\\text
 fn<- d.n.orchard%>%
   filter(Diurn_Noctur=="Nocturnal")
 k.2 <- dim(fn)[1]
-stdy.2<- fd.n%>% summarise(stdy = length(unique(Title)))
+stdy.2<- fn%>% summarise(stdy = length(unique(Title)))
 anno.2 <- annotate("text", x = 2.2, y = 2.5, size=4.5,label = TeX(paste0("\\textit{k} = ", k.2, " (", stdy.2, ")")))
-
 
 plot.v.plant<-orchaRd::orchard_plot(HetModel.v.plant, xlab = "Hedges´g",
                                     group="Plant.species.family", colour = TRUE, 
@@ -1041,31 +1344,48 @@ plot.v.plant<-orchaRd::orchard_plot(HetModel.v.plant, xlab = "Hedges´g",
         axis.text.x=element_text(size=15),
         axis.title=element_text(size=15))+
   scale_y_continuous(limits = c(-8.8,5))+
-  scale_fill_manual(values=c("#654226" ,"#DEDEE0" ,"#CB2E58" ,"#D6ED5C"
-                    ,"#555556", "#FC16C0", "#BC7F66" ,"#B4229A"
-                    ,"#FA2632" ,"#771C96" ,"#FDB1F4" ,"#DC75FE"
-                    , "#B4EEB9", "#F7A90D" ,"#00D8FD" ,"#FDD6C1"
-                    , "#1CFFCB", "#3D3DFF" ,"#F70D81" ,"#F6E09F"
-                    , "#777235" ,"#AD928E" ,"#FBB9CB", "#ABF388"
-                    ,"#A3ABF6", "#C26D22" ,"#B4910D", "#2EFE16"
-                    ,"#2256AE" ,"#85A416" ,"#FB0DF9", "#9880AC"
-                    ,"#22C34D" ,"#D600FF", "#FC8800", "#005380"
-                    ,"#A683FC" ,"#66C5C0", "#FE68ED" ,"#920DCB"
-                    ,"#0D7D4D"))+
-scale_color_manual(values=c("#654226" ,"#DEDEE0" ,"#CB2E58" ,"#D6ED5C"
-                            ,"#555556", "#FC16C0", "#BC7F66" ,"#B4229A"
-                            ,"#FA2632" ,"#771C96" ,"#FDB1F4" ,"#DC75FE"
-                            , "#B4EEB9", "#F7A90D" ,"#00D8FD" ,"#FDD6C1"
-                            , "#1CFFCB", "#3D3DFF" ,"#F70D81" ,"#F6E09F"
-                            , "#777235" ,"#AD928E" ,"#FBB9CB", "#ABF388"
-                            ,"#A3ABF6", "#C26D22" ,"#B4910D", "#2EFE16"
-                            ,"#2256AE" ,"#85A416" ,"#FB0DF9", "#9880AC"
-                            ,"#22C34D" ,"#D600FF", "#FC8800", "#005380"
-                            ,"#A683FC" ,"#66C5C0", "#FE68ED" ,"#920DCB"
-                            ,"#0D7D4D"))+
+  scale_color_discrete(name="Color Group", values="p42")+
+  scale_size_continuous(name="Point Size")
   anno.1+ anno.2
 
-ggsave(plot.v.plant, filename="RData/figures/ES.famplantas.dn.png",
+plot.v.plant<-orchaRd::orchard_plot(HetModel.v.plant, xlab = "Hedges´g",
+                                    group="Plant.species.family",colour = TRUE, 
+                                    alpha=0.65,angle = 45, g = FALSE, k=F, 
+                                    branch.size=1.5,trunk.size = 7.5)+
+  theme(legend.direction = "horizontal")+
+  theme(legend.title = element_text(size =11),
+        legend.text = element_text(size = 11),
+        text=element_text(size=10),
+        axis.text.y = element_text(size =14),
+        plot.title = element_text(lineheight=.8),
+        axis.text.x=element_text(size=15),
+        axis.title=element_text(size=15))+
+  scale_y_continuous(limits = c(-8.8,5))+
+  scale_fill_manual(values=c("#00C5FB", "#E1E0E0", "#3B4F1C", "#BEE5FC",
+                              "#665660", "#EB6342", "#00FCD6", "#FEDD79",
+                             "#FA1C38", "#D19FFE" ,"#7C5389", "#897D0D",
+                             "#A3A3CE" ,"#5AFC96", "#0053FD", "#008A35",
+                             "#FCA4B9", "#F765AA", "#7DA316", "#FFBDA6",
+                             "#FDB0E1", "#A80D42", "#E3804B", "#7F6CE6",
+                             "#167FB4" ,"#40A7FE" ,"#79E0A5", "#165570",
+                             "#32FE0D" ,"#DF69FC" ,"#DCEA00", "#47B9D1",
+                             "#8316A8", "#C9EBA7", "#F0DFAC", "#B8008F",
+                             "#FD1C85", "#AC967D", "#88D800", "#724922",
+                             "#FFE316", "#A40DEA"))+
+scale_color_manual(values=c( "#00C5FB", "#E1E0E0", "#3B4F1C", "#BEE5FC",
+                             "#665660", "#EB6342", "#00FCD6", "#FEDD79",
+                             "#FA1C38", "#D19FFE" ,"#7C5389", "#897D0D",
+                             "#A3A3CE" ,"#5AFC96", "#0053FD", "#008A35",
+                             "#FCA4B9", "#F765AA", "#7DA316", "#FFBDA6",
+                             "#FDB0E1", "#A80D42", "#E3804B", "#7F6CE6",
+                             "#167FB4" ,"#40A7FE" ,"#79E0A5", "#165570",
+                             "#32FE0D" ,"#DF69FC" ,"#DCEA00", "#47B9D1",
+                             "#8316A8", "#C9EBA7", "#F0DFAC", "#B8008F",
+                             "#FD1C85", "#AC967D", "#88D800", "#724922",
+                             "#FFE316", "#A40DEA"))+
+  anno.1+ anno.2
+
+ggsave(plot.v.plant, filename="Figs/S9.png",
        width = 9, height = 6)
 
 ##fams studied for vert/invert
@@ -1109,37 +1429,39 @@ plot.vi.plant<-orchaRd::orchard_plot(HetModel.vi.plant, xlab = "Hedges´g",group
         axis.text.x=element_text(size=15),
         axis.title=element_text(size=15))+
   scale_y_continuous(limits = c(-8.8,5))+
-  scale_fill_manual(values=c("#654226" ,"#F2DD0D" ,"#DEDEE0" ,"#FD621C"
-                             ,"#CB2E58" ,"#0D84FF", "#85A38C" ,"#D6ED5C"
-                             ,"#555556" ,"#FC16C0" ,"#BC7F66" ,"#B4229A"
-                             ,"#FA2632" ,"#771C96", "#DC75FE", "#E05D93"
-                             ,"#B4EEB9", "#F7A90D" ,"#00D8FD" ,"#22AFFD"
-                             ,"#1CFFCB", "#3D3DFF" ,"#F70D81" ,"#F6E09F"
-                             ,"#933226" ,"#777235", "#AD928E", "#FBB9CB"
-                             ,"#ABF388", "#A3ABF6", "#EDD5FF", "#C26D22"
-                             ,"#2EFE16", "#7F2E58", "#26F9FA" ,"#B5DBFE"
-                             ,"#2256AE", "#4D16C8", "#85A416" ,"#FB0DF9"
-                             ,"#FEB87E" ,"#9880AC" ,"#FF83D5" ,"#FC8C8B"
-                             , "#2A8816", "#CE5126", "#ADF31C" ,"#FC8800"
-                             ,"#005380" ,"#A683FC" ,"#66C5C0" ,"#920DCB"
-                             ,"#0D7D4D"))+
-  scale_color_manual(values=c("#654226" ,"#F2DD0D" ,"#DEDEE0" ,"#FD621C"
-                              ,"#CB2E58" ,"#0D84FF", "#85A38C" ,"#D6ED5C"
-                              ,"#555556" ,"#FC16C0" ,"#BC7F66" ,"#B4229A"
-                              ,"#FA2632" ,"#771C96", "#DC75FE", "#E05D93"
-                              ,"#B4EEB9", "#F7A90D" ,"#00D8FD" ,"#22AFFD"
-                              ,"#1CFFCB", "#3D3DFF" ,"#F70D81" ,"#F6E09F"
-                              ,"#933226" ,"#777235", "#AD928E", "#FBB9CB"
-                              ,"#ABF388", "#A3ABF6", "#EDD5FF", "#C26D22"
-                              ,"#2EFE16", "#7F2E58", "#26F9FA" ,"#B5DBFE"
-                              ,"#2256AE", "#4D16C8", "#85A416" ,"#FB0DF9"
-                              ,"#FEB87E" ,"#9880AC" ,"#FF83D5" ,"#FC8C8B"
-                              , "#2A8816", "#CE5126", "#ADF31C" ,"#FC8800"
-                              ,"#005380" ,"#A683FC" ,"#66C5C0" ,"#920DCB"
-                              ,"#0D7D4D"))+
+  scale_fill_manual(values=c( "#00C5FB", "#32408E", "#E1E0E0" ,"#AF00AF",
+                              "#3B4F1C", "#FB00FF", "#26FAFF" ,"#BEE5FC",
+                              "#665660", "#84321C", "#EB6342", "#00FCD6",
+                              "#D2DD6C", "#FEDD79", "#FA1C38", "#D19FFE",
+                              "#7C5389", "#A3A3CE", "#FFA92A", "#5AFC96",
+                              "#0053FD" ,"#008A35" ,"#FCA4B9", "#A1EEDF",
+                              "#F765AA", "#7DA316", "#FFBDA6", "#FDB0E1",
+                              "#FC8A92", "#A80D42", "#E3804B", "#7F6CE6",
+                              "#167FB4", "#40A7FE", "#22AF1C", "#79E0A5",
+                              "#165570" ,"#32FE0D" ,"#F975E8", "#DE2649",
+                              "#B45A7D", "#DF69FC", "#FD22C5", "#DCEA00",
+                              "#47B9D1", "#819A65" ,"#8316A8", "#C673C4",
+                              "#AF731C", "#00B1A8" ,"#870D78", "#3B8270",
+                              "#B8008F", "#FD1C85", "#AC967D", "#88D800",
+                              "#FFE316", "#A40DEA"))+
+  scale_color_manual(values=c("#00C5FB", "#32408E", "#E1E0E0" ,"#AF00AF",
+                              "#3B4F1C", "#FB00FF", "#26FAFF" ,"#BEE5FC",
+                              "#665660", "#84321C", "#EB6342", "#00FCD6",
+                              "#D2DD6C", "#FEDD79", "#FA1C38", "#D19FFE",
+                              "#7C5389", "#A3A3CE", "#FFA92A", "#5AFC96",
+                              "#0053FD" ,"#008A35" ,"#FCA4B9", "#A1EEDF",
+                              "#F765AA", "#7DA316", "#FFBDA6", "#FDB0E1",
+                              "#FC8A92", "#A80D42", "#E3804B", "#7F6CE6",
+                              "#167FB4", "#40A7FE", "#22AF1C", "#79E0A5",
+                              "#165570" ,"#32FE0D" ,"#F975E8", "#DE2649",
+                              "#B45A7D", "#DF69FC", "#FD22C5", "#DCEA00",
+                              "#47B9D1", "#819A65" ,"#8316A8", "#C673C4",
+                              "#AF731C", "#00B1A8" ,"#870D78", "#3B8270",
+                              "#B8008F", "#FD1C85", "#AC967D", "#88D800",
+                              "#FFE316", "#A40DEA"))+
   anno.1+anno.2
 
-ggsave(plot.vi.plant, filename="RData/figures/ES.famplantas.vi.png",
+ggsave(plot.vi.plant, filename="Figs/S9.famplantas.vi.png",
        width = 9, height = 6)
 
 ##plant fams studied for managed wild pollinators
@@ -1185,50 +1507,51 @@ plot.mw.plant<-orchaRd::orchard_plot(HetModel.mw.plant, xlab = "Hedges´g",group
         axis.text.x=element_text(size=15),
         axis.title=element_text(size=15))+
   scale_y_continuous(limits = c(-8.8,5))+
-  scale_fill_manual(values=c("#654226", "#BF87E0" ,"#F2DD0D", "#DEDEE0"
-                              ,"#FD621C", "#CB2E58", "#0D84FF", "#85A38C"
-                             ,"#2ABE7F" ,"#D6ED5C", "#555556", "#A30DFF"
-                             ,"#D60084" ,"#FC16C0", "#BC7F66", "#499FCE"
-                             ,"#B4229A" ,"#FA2632", "#771C96" ,"#FDB1F4"
-                             , "#DC75FE", "#E05D93", "#B4EEB9", "#F7A90D"
-                            , "#00D8FD" ,"#FDD6C1" ,"#22AFFD", "#1CFFCB"
-                            , "#AC5FA3", "#3D3DFF" ,"#F70D81", "#F6E09F"
-                            , "#933226", "#638B9E", "#777235", "#AD928E"
-                            , "#FBB9CB", "#ABF388", "#A3ABF6", "#EDD5FF"
-                            , "#C26D22", "#B4910D", "#2EFE16", "#7F2E58"
-                             ,"#26F9FA", "#B5DBFE", "#B60DBC", "#2256AE"
-                             ,"#C06678", "#4D16C8", "#85A416", "#FB0DF9"
-                             ,"#FEB87E", "#9880AC", "#FF83D5", "#22C34D"
-                             ,"#FC8C8B", "#2A8816", "#CE5126", "#ADF31C"
-                             ,"#D600FF", "#FC8800", "#005380", "#A683FC"
-                            , "#66C5C0", "#FE68ED", "#920DCB", "#0D7D4D"))+
-  scale_color_manual(values=c("#654226", "#BF87E0" ,"#F2DD0D", "#DEDEE0"
-                              ,"#FD621C", "#CB2E58", "#0D84FF", "#85A38C"
-                              ,"#2ABE7F" ,"#D6ED5C", "#555556", "#A30DFF"
-                              ,"#D60084" ,"#FC16C0", "#BC7F66", "#499FCE"
-                              ,"#B4229A" ,"#FA2632", "#771C96" ,"#FDB1F4"
-                              , "#DC75FE", "#E05D93", "#B4EEB9", "#F7A90D"
-                              , "#00D8FD" ,"#FDD6C1" ,"#22AFFD", "#1CFFCB"
-                              , "#AC5FA3", "#3D3DFF" ,"#F70D81", "#F6E09F"
-                              , "#933226", "#638B9E", "#777235", "#AD928E"
-                              , "#FBB9CB", "#ABF388", "#A3ABF6", "#EDD5FF"
-                              , "#C26D22", "#B4910D", "#2EFE16", "#7F2E58"
-                              ,"#26F9FA", "#B5DBFE", "#B60DBC", "#2256AE"
-                              ,"#C06678", "#4D16C8", "#85A416", "#FB0DF9"
-                              ,"#FEB87E", "#9880AC", "#FF83D5", "#22C34D"
-                              ,"#FC8C8B", "#2A8816", "#CE5126", "#ADF31C"
-                              ,"#D600FF", "#FC8800", "#005380", "#A683FC"
-                              , "#66C5C0", "#FE68ED", "#920DCB", "#0D7D4D"))+
+  scale_fill_manual(values=c("#00C5FB", "#BC9AAF", "#32408E", "#E1E0E0",
+                             "#AF00AF" ,"#3B4F1C", "#FB00FF", "#26FAFF",
+                             "#9DEC83", "#BEE5FC" ,"#665660", "#84321C",
+                             "#FF5D88", "#EB6342", "#00FCD6" ,"#D2DD6C",
+                             "#FEDD79", "#FA1C38", "#D19FFE", "#7C5389",
+                             "#897D0D", "#A3A3CE" ,"#FFA92A", "#5AFC96",
+                             "#0053FD", "#008A35", "#FCA4B9", "#A1EEDF",
+                             "#F765AA", "#84979F", "#7DA316", "#FFBDA6",
+                             "#FDB0E1", "#FC8A92" ,"#A0AFFC", "#A80D42",
+                             "#E3804B", "#7F6CE6", "#167FB4", "#40A7FE",
+                             "#22AF1C" ,"#79E0A5", "#165570", "#32FE0D",
+                             "#F975E8", "#DE2649", "#B45A7D", "#FE8500",
+                             "#DF69FC", "#A33200", "#FD22C5", "#DCEA00",
+                             "#47B9D1", "#819A65", "#8316A8", "#C673C4",
+                             "#C9EBA7", "#AF731C", "#00B1A8", "#870D78",
+                             "#3B8270", "#F0DFAC", "#B8008F", "#FD1C85",
+                             "#AC967D", "#88D800", "#724922", "#FFE316",
+                             "#A40DEA"))+
+  scale_color_manual(values=c("#00C5FB", "#BC9AAF", "#32408E", "#E1E0E0",
+                              "#AF00AF" ,"#3B4F1C", "#FB00FF", "#26FAFF",
+                              "#9DEC83", "#BEE5FC" ,"#665660", "#84321C",
+                              "#FF5D88", "#EB6342", "#00FCD6" ,"#D2DD6C",
+                              "#FEDD79", "#FA1C38", "#D19FFE", "#7C5389",
+                              "#897D0D", "#A3A3CE" ,"#FFA92A", "#5AFC96",
+                              "#0053FD", "#008A35", "#FCA4B9", "#A1EEDF",
+                              "#F765AA", "#84979F", "#7DA316", "#FFBDA6",
+                              "#FDB0E1", "#FC8A92" ,"#A0AFFC", "#A80D42",
+                              "#E3804B", "#7F6CE6", "#167FB4", "#40A7FE",
+                              "#22AF1C" ,"#79E0A5", "#165570", "#32FE0D",
+                              "#F975E8", "#DE2649", "#B45A7D", "#FE8500",
+                              "#DF69FC", "#A33200", "#FD22C5", "#DCEA00",
+                              "#47B9D1", "#819A65", "#8316A8", "#C673C4",
+                              "#C9EBA7", "#AF731C", "#00B1A8", "#870D78",
+                              "#3B8270", "#F0DFAC", "#B8008F", "#FD1C85",
+                              "#AC967D", "#88D800", "#724922", "#FFE316",
+                              "#A40DEA"))+
   anno.1+anno.2
 
-unique(m.w.orchard$Plant.species.family)
-ggsave(plot.mw.plant, filename="RData/figures/ES.famplantas.mw.png",
+ggsave(plot.mw.plant, filename="Figs/S9.famplantas.mw.png",
        width = 9, height = 6)
 
 ##supplementary figure
 fig.sup<- plot_grid(plot.v.plant,plot.vi.plant,plot.mw.plant, labels=c("A","B","C"),label_size = 20,  hjust = -1)
 
-ggsave(fig.sup, filename="RData/figures/fig.sup.png",
+ggsave(fig.sup, filename="Figs/S9.fig.png",
        width = 11, height = 8)
 
 ###model for plant families
@@ -1244,11 +1567,10 @@ r2_ml(rep.fam.reml)
 ##estimates
 res_fam<- mod_results(rep.fam.reml, mod ="Plant.species.family", group="Title")
 box<-res_fam$mod_table
-
-box%>%arrange(estimate)
 box<-box%>%
   filter(!str_detect(name, ","))
-  
+box%>%arrange(estimate) 
+
 ##forest plot plant families for supl. material
 figu2 <- ggplot (box, aes (y=name))+
   theme_classic()+
@@ -1260,9 +1582,107 @@ figu2 <- ggplot (box, aes (y=name))+
         axis.text.x=element_text(size=15),
         text=element_text(size=15))
 
-ggsave(figu2,filename="RData/figures/families.png",
+ggsave(figu2,filename="Figs/familie.S7.png",
        width = 5.5, height = 12)
-  
+###shared families for crops and wild plants
+shared_ids <- effect.size.total %>% 
+  group_by(Plant.species.family) %>%
+  filter(Cultivo %in% c("Crop", "No_crop"))%>%
+  filter(n_distinct(Cultivo) == 2) 
+
+p.f<-shared_ids%>%
+  group_by(Plant.species.family, Cultivo)%>%
+  summarise(mean_yi = mean(yi),
+            ci_lower = mean(yi) - qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+            ci_upper = mean(yi) + qt(0.975, df = n() - 1) * sd(yi) / sqrt(n())
+  )
+
+overall <- shared_ids %>%
+  group_by(Cultivo) %>%
+  summarise(
+    mean_yi = mean(yi),
+    ci_lower = mean(yi) - qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+    ci_upper = mean(yi) + qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Combine the results into a single data frame
+combined_results <- bind_rows(p.f, overall %>% mutate(Plant.species.family = "Overall"))
+# Ordenar las familias de plantas según su importancia
+plant_order <- c("Thymelaeaceae","Solanaceae","Rubiaceae","Rosaceae",
+                 "Proteaceae","Polygonaceae","Malvaceae","Liliaceae",
+                 "Fabaceae","Ericaceae","Cucurbitaceae", "Cactaceae",
+                 "Brassicaceae","Asteraceae","Amaryllidaceae", "Overall")  # Agrega aquí el orden deseado
+
+# Convertir Plant.species.family en factor y establecer el orden deseado
+combined_results$Plant.species.family <- factor(combined_results$Plant.species.family, levels = plant_order)
+
+##forest plot shared families crop no crop
+fig.shared <- ggplot (combined_results, aes (y=Plant.species.family, x=mean_yi))+
+  theme_classic()+
+  facet_wrap(~Cultivo, nrow = 1,labeller = labeller(Cultivo = c("Crop" = "Crops",
+                                                             "No_crop" = "Wild plants")))+
+  geom_point(size=3.5)+
+  geom_linerange(aes(xmin=ci_lower, xmax=ci_upper))+
+  geom_vline(xintercept=0, linetype="dashed", col="#FF5E5B")+
+  labs(x="Hedges´g", y="", size=15)+
+  theme(axis.text.y = element_text(size =15),
+        axis.text.x=element_text(size=15),
+        text=element_text(size=15))+ 
+  geom_text(aes(label = round(mean_yi, 2), y=Plant.species.family), nudge_x = -1.4,nudge_y = 0.35,size = 4, color = "black")
+ggsave(fig.shared,filename="Figs/Sharedfam.wc.png",
+       width = 6.5, height = 7)
+###shared families for wild and managed pollinators
+###shared families for crops and wild plants
+shared_wild.man <- effect.size.total %>% 
+  group_by(Plant.species.family) %>%
+  filter(Managed_Wild %in% c("Managed", "Wild"))%>%
+  filter(n_distinct(Managed_Wild) == 2) 
+
+p.wm<-shared_wild.man%>%
+  group_by(Plant.species.family, Managed_Wild)%>%
+  summarise(mean_yi = mean(yi),
+            ci_lower = mean(yi) - qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+            ci_upper = mean(yi) + qt(0.975, df = n() - 1) * sd(yi) / sqrt(n())
+  )
+
+overall <- shared_wild.man%>%
+  group_by(Managed_Wild) %>%
+  summarise(
+    mean_yi = mean(yi),
+    ci_lower = mean(yi) - qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+    ci_upper = mean(yi) + qt(0.975, df = n() - 1) * sd(yi) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Combine the results into a single data frame
+combined_results.wm <- bind_rows(p.wm, overall %>% mutate(Plant.species.family = "Overall"))
+# Ordenar las familias de plantas según su importancia
+plant_order <- c("Anacardiaceae","Apiaceae","Brassicaceae","Cucurbitaceae",
+                 "Ericaceae","Fabaceae", "Rosaceae","Solanaceae" ,"Overall")  # Agrega aquí el orden deseado
+
+# Convertir Plant.species.family en factor y establecer el orden deseado
+combined_results.wm$Plant.species.family <- factor(combined_results.wm$Plant.species.family, levels = plant_order)
+
+##forest plot shared families crop no crop
+fig.shared.wm <- ggplot (combined_results.wm, aes (y=Plant.species.family, x=mean_yi))+
+  theme_classic()+
+  facet_wrap(~Managed_Wild, nrow = 1)+
+  geom_point(size=3)+
+  geom_linerange(aes(xmin=ci_lower, xmax=ci_upper))+
+  geom_vline(xintercept=0, linetype="dashed", col="#FF5E5B")+
+  labs(x="Hedges´g", y="", size=15)+
+  theme(axis.text.y = element_text(size =15),
+        axis.text.x=element_text(size=15),
+        text=element_text(size=15))+ 
+  geom_text(aes(label = round(mean_yi, 2)), hjust=0,nudge_x = -0.4 ,nudge_y = 0.2,size = 4, color = "black")
+
+ggsave(fig.shared.wm,filename="Figs/Sharedfam.wm.png",
+       width = 6.5, height = 7)
+
+s10<- plot_grid(fig.shared, fig.shared.wm, labels=c("A","B"),label_size = 18,  hjust = -1)
+ggsave(s10, filename="Figs/S.shared.png",
+       width = 11, height = 6)
 
 ###study type orchard plot
 mesoc<- effect.size.total%>%
@@ -1339,5 +1759,89 @@ plot.stype<-orchaRd::orchard_plot(HetModel.st, xlab = "Hedges´g", alpha=0.65,an
      anno.1+ anno.2 + anno.3
      
 
-ggsave(plot.stype, filename="RData/figures/obs.exp.png",
+ggsave(plot.stype, filename="Figs/S6study.type.png",
        width =9, height = 6)
+
+
+###van diagram
+install.packages("VennDiagram")
+library(VennDiagram)
+library(eulerr)
+
+
+df<-effect.size.total[,c(1,54,55,56)]
+# Inicializar listas vacías para cada combinación
+listas_diurnal <- list()
+listas_nocturnal <- list()
+listas_vertebrate <- list()
+listas_invertebrate <- list()
+listas_managed <- list()
+listas_wild <- list()
+
+
+status_column <- "Diurn_Noctur"  
+status_column2 <- "Managed_Wild"    
+status_column3<- "Vert_Invert"
+
+# Iterate over each row of the DataFrame
+for (i in 1:nrow(df)) {
+  # Check if the value is not NA and is "Diurnal"
+  if (!is.na(df[i, status_column]) && df[i, status_column] == "Diurnal") {
+    listas_diurnal <- c(listas_diurnal, list(df[i, ]))
+  }
+  
+  if (!is.na(df[i, status_column]) && df[i, status_column] == "Nocturnal") {
+    listas_nocturnal <- c(listas_nocturnal, list(df[i, ]))
+  }
+  
+  if (!is.na(df[i, status_column2]) && df[i, status_column2] == "Wild") {
+    listas_wild <- c(listas_wild, list(df[i, ]))
+  }
+  if (!is.na(df[i, status_column2]) && df[i, status_column2] == "Managed") {
+    listas_managed <- c(listas_managed, list(df[i, ]))
+  }
+  if (!is.na(df[i, status_column3]) && df[i, status_column3] == "Vertebrate") {
+    listas_vertebrate <- c(listas_vertebrate, list(df[i, ]))
+  }
+  if (!is.na(df[i, status_column3]) && df[i, status_column3] == "Invertebrate") {
+    listas_invertebrate <- c(listas_invertebrate, list(df[i, ]))
+  }
+  
+}
+
+
+
+
+# List of sets
+venn_data <- list(
+  A = listas_diurnal,
+  B = listas_nocturnal,
+  C = listas_vertebrate,
+  D = listas_invertebrate,
+  #E = listas_managed,
+  G = listas_wild
+)
+
+str(venn_data)
+
+
+# Create the Venn diagram
+venn.plot <- venn.diagram(
+  x = venn_data,
+  category.names = c("Diurnal", "Nocturnal", "Vertebrate", "Invertebrate",  "Wild"),
+  filename = NULL, # Use NULL to not save automatically to a file
+  output = TRUE,
+  fill = c("red", "green", "blue",  "yellow", "purple"),
+  alpha = 0.5,
+  cex = 2,
+  cat.cex = 2,
+  cat.pos = 0,
+  cat.dist = 0.05
+)
+
+# Display the Venn diagram
+
+png(file="Figs/S10.Vennplot.png",units = "in",res = 1200, width=7, height=6) # Open PNG device with specific file name
+grid.draw(venn.plot)  
+dev.off() 
+                                                      

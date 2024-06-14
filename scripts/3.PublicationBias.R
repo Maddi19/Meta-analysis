@@ -1,5 +1,5 @@
 #######Publication bias and time lags bias#########
-repr.success <- read.csv("data/3.effectsizes_clean.csv")
+repr.success <- read.csv("data/3.effectsizes_clean_nw.csv")
 
 ##remove data without effect size (there is one without country)
 ##remove also observations on abundance and visitation rates
@@ -37,7 +37,7 @@ publi.bias <- orchaRd::bubble_plot(lim_bubble, group = "Title", mod = "Year", xl
         axis.text.y = element_text(size =20))+
  ggtitle("Effect sizes across years")
 
-ggsave(publi.bias, filename="RData/figures/publi.bias.png",
+ggsave(publi.bias, filename="Figs/S3publi.bias.png",
        width = 8.5, height = 6)
 
 ###publication bias
@@ -47,6 +47,13 @@ funnel_full <- rma.mv(yi, vi,
 f2 <- funnel(funnel_full, yaxis = "seinv", level = c(90, 95, 99),
              shade = c("white", "gray55", "gray75"),
              refline = 0,  ylim=c(0.45,3))
+
+png(file="Figs/S2.funnel.png",units = "in",res = 1200, width=7, height=6) # Open PNG device with specific file name
+funnel(funnel_full, yaxis = "seinv", level = c(90, 95, 99),
+       shade = c("white", "gray55", "gray75"),
+       refline = 0,  ylim=c(0.45,3))
+dev.off() 
+
 
 dmetar::eggers.test(x = funnel_full)
 
@@ -68,11 +75,11 @@ eggers.test(funnel_full)
 
 regtest(funnel_full, model="lm")
 ranktest(funnel_full)
-regtest()
+
 
 ##fail safe number
 fsn(yi,vi, data=effect.size.total)
-5*751+10
+5*780+10
 
 ##trimfill
 m3.remlk<- rma(yi,vi, data=effect.size.total,method="REML")
@@ -97,16 +104,19 @@ axis(side=1, mgp=c(3,0.75,0))
 # Calculate and plot Cook's distance for every effect size
 cooksd <- cooks.distance(m3.reml, progbar=TRUE, reestimate=F)
 sample_size <- nrow(funnel_full)
+
+png(file="Figs/S4.cook.png",units = "in",res = 1200, width=7, height=6) # Open PNG device with specific file name
 plot(cooksd, pch="*", cex=2, xlab="Observation number", ylab="Cook's distance", yaxt = "n", xaxt="n")
 axis(side=2,las =2,mgp = c(3,0.75, 0))
 axis(side=1, mgp=c(3,0.75,0))
 abline(h = 4/751, col="red")
+dev.off() 
 
-##12outliers. 4/sample size
+##14outliers. 4/sample size
 
-influential.1 <- as.numeric(names(cooksd)[(cooksd > (4/751))])
+influential.1 <- as.numeric(names(cooksd)[(cooksd > (4/780))])
 remove.outliers<- effect.size.total[-influential.1, ] # create new dataset removing influential observations
-
+unique(remove.outliers$Title)
 RES5.reml.SA2 <- rma.mv(yi = yi, V = vi, random = list(~1|Title, ~1|Year),  data = remove.outliers, method = "REML")
 summary(RES5.reml.SA2)
 RES5.reml.SA2.res <- (orchaRd::mod_results(RES5.reml.SA2, mod = "1", group="yi")) # table of results

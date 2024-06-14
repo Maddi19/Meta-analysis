@@ -6,7 +6,7 @@ pacman::p_load(tidyverse,rtry,rJava, dplyr,metafor,cowplot,orchaRd,ggbeeswarm,ti
                ggmap,mapproj,glmulti,MuMIn, RColorBrewer,ggsci)
 
 ##
-repr.success <- read.csv("data/3.effectsizes_clean.csv")
+repr.success <- read.csv("data/3.effectsizes_clean_nw.csv")
 ##delete data without effect size
 trait.1<-repr.success[!is.na(repr.success$yi), ]
 trait.1<-trait.1[!is.na(trait.1$vi), ]
@@ -15,7 +15,6 @@ trait.1<-trait.1%>%
   filter(!str_detect(Pollinator.variable.measure, "abundance")) %>%
   filter(!str_detect(Pollinator.variable.measure, "visitation"))
 
-##751obs
 unique(trait.1$Plant.species)
 
 #############################################################
@@ -278,21 +277,11 @@ traits.1<- trait.1 %>%
 
 unique(df_collapsed$Flower_color)
 
-##outliers
-traits.1$upperci <- traits.1$yi + 1.96 * sqrt(traits.1$vi)
-traits.1$lowerci <- traits.1$yi - 1.96 * sqrt(traits.1$vi)
-# Create filter variable
-m0<- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= ~1|Title, data=traits.1)
-summary(m0)
-traits.1$outlier <- traits.1$upperci < m0$ci.lb | traits.1$lowerci > m0$ci.ub
-# Count number of outliers:
-sum(traits.1$outlier)
-traits.1[traits.1$outlier, c("yi", "upperci", "lowerci")]
-
-
+write.csv(traits.1, "data/try.csv")
 ##add info from Lanuza et al paper:
 ##load dataset traits de Lanuza
 library(readxl)
+traits.1<-read.csv("data/try.csv")
 data.trait <- readxl::read_excel("data/traits/Lanuza_data.xlsx")
 data.trait<-data.trait[!is.na(data.trait$Species_all), ]
 data.trait<- data.trait%>%
@@ -380,7 +369,7 @@ traits_total<-traits_total%>%
     Genus== "Vaccinium" ~ "self_compatible",
     TRUE~IMPUTED_Compatibility))
 
-write.csv(traits_total, "data/4.complete_table.csv")
+write.csv(traits_total, "data/4.complete_table.nw.csv")
 
 
 

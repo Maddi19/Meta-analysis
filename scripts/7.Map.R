@@ -12,7 +12,7 @@ library(rnaturalearth)
 library(rnaturalearthdata)
 
 
-repr.success <- read.csv("data/3.effectsizes_clean.csv")
+repr.success <- read.csv("data/3.effectsizes_clean_nw.csv")
 ####delete data without effect size, there is one without country, this is also removed
 ###remove also observations on abundance and visitation rates
 effect.size.total<-repr.success[!is.na(repr.success$yi), ]
@@ -31,8 +31,10 @@ library(tmaptools)
 effect.size.total$Country <- recode(effect.size.total$Country, "Perú"="Peru",
                                
                                "Spain, Canary Islands"="Canary Islands",
-                               "England"="UK")
+                               "England"="UK",
+                               "Netherlands Antilles"="Curazao")
 
+unique(effect.size.total$Country)
 ##for observations:  
 obs.country <- effect.size.total%>%
   separate_rows(Country,sep=", ")%>%
@@ -43,7 +45,7 @@ obs.country <- effect.size.total%>%
 
 #try using google maps
 library(ggmap)
-register_google(key="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+register_google(key="XXXXXXXXXXXXXXXXXXXXXXXXXX")
 
 study_locations<-obs.country$Country
 study_locations<-obs.country$Country
@@ -59,7 +61,7 @@ crop_studies <- effect.size.total%>%
   separate_rows(Country,sep=" & ")%>%
   filter(!is.na(Country))
 
-
+unique(crop_studies$Country)
 crop_studies<-table(crop_studies$Country,crop_studies$Cultivo)
 crop_studies<- as.data.frame(crop_studies)
 crop_studies<-crop_studies%>%
@@ -85,7 +87,6 @@ world_map_plot<-ggplot(world_map,aes(long,lat,group=group))+
 
 install.packages("scatterpie")
 library(scatterpie)
-help(geom_scatterpie)
 
 
 country_coord_counts$obs.country<- as.numeric(country_coord_counts$obs.country)
@@ -123,7 +124,7 @@ p12 <- map+ inset_element(map.eu+theme(plot.background = element_rect(fill = "wh
                             left = 0.415, bottom = 0, right = 0.915, top = 0.35,
                           )
 
-ggsave("Map.figure.1.png", width = 15, height= 12, plot=p12)
+ggsave("Figs/Map.figure.png", width = 15, height= 12, plot=p12)
 
 
 
