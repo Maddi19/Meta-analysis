@@ -463,7 +463,7 @@ ggsave(fig3, filename="Figs/Figure3.nw.png",
        width = 12, height = 4)
 
 ###ORCHARD PLOT FOR MAIN REPRODUCTIVE SUCCESS MEASURES
-# We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
+##We first fit the model with moderator with ML to compare it to the null model (AIC and likelihood ratio test)
 # We fit the model without intercept to get estimated effect (slope) for each level of a categorical moderator
 m3<- rma.mv(yi,vi, random=  list(~ 1 | Year, ~ 1 | Title), data=effect.size.total,method="ML")
 rep.su <- rma.mv(yi,vi,mods=~Reproductive.succes.measure-1,random= list(~ 1 | Year, ~ 1 | Title), data=effect.size.total, method="ML")
